@@ -33,7 +33,7 @@ func (w *cappedBuffer) Write(data []byte) (int, error) {
 
 func Run(command string, rawLevel int) error {
 	if strings.TrimSpace(command) == "" {
-		return errors.New("el comando shell está vacío")
+		return errors.New("the shell command is empty")
 	}
 	if rawLevel < 0 {
 		rawLevel = 0
@@ -52,7 +52,7 @@ func Run(command string, rawLevel int) error {
 	cmd.Stdout = &cappedBuffer{limit: 4096}
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("iniciar shell: %w", err)
+		return fmt.Errorf("start shell: %w", err)
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
@@ -67,12 +67,12 @@ func Run(command string, rawLevel int) error {
 		if message == "" {
 			message = err.Error()
 		}
-		return fmt.Errorf("comando shell: %s", message)
+		return fmt.Errorf("shell command: %s", message)
 	case <-timer.C:
-		// Mata todo el grupo, no sólo /bin/sh, para que un hijo no sobreviva al
-		// timeout y siga consumiendo recursos en segundo plano.
+		// Kill the complete group, not only /bin/sh, so a child cannot outlive the
+		// timeout and continue consuming resources in the background.
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		<-done
-		return fmt.Errorf("comando shell excedió %s", Timeout)
+		return fmt.Errorf("shell command exceeded %s", Timeout)
 	}
 }

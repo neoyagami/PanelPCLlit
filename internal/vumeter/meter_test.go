@@ -12,25 +12,25 @@ func TestNormalizedPeak(t *testing.T) {
 	binary.LittleEndian.PutUint32(data[4:8], math.Float32bits(-0.1)) // -20 dB
 	got := normalizedPeak(data, -40, 0)
 	if math.Abs(got-0.5) > 0.001 {
-		t.Fatalf("nivel = %f, se esperaba 0.5", got)
+		t.Fatalf("level = %f, expected 0.5", got)
 	}
 }
 
 func TestNormalizedPeakClamps(t *testing.T) {
 	silence := make([]byte, 4)
 	if got := normalizedPeak(silence, -48, 0); got != 0 {
-		t.Fatalf("silencio = %f", got)
+		t.Fatalf("silence = %f", got)
 	}
 	loud := make([]byte, 4)
 	binary.LittleEndian.PutUint32(loud, math.Float32bits(2))
 	if got := normalizedPeak(loud, -48, 0); got != 1 {
-		t.Fatalf("nivel fuerte = %f", got)
+		t.Fatalf("loud level = %f", got)
 	}
 }
 
 func TestClampFPS(t *testing.T) {
 	if clampFPS(1) != 5 || clampFPS(20) != 20 || clampFPS(100) != 30 {
-		t.Fatal("clampFPS no respetó 5..30")
+		t.Fatal("clampFPS did not enforce 5..30")
 	}
 }
 
@@ -49,7 +49,7 @@ func TestSpectrumBands(t *testing.T) {
 		bands := spectrumBands(data, -60, 0)
 		for index, value := range bands {
 			if index != test.band && value >= bands[test.band] {
-				t.Fatalf("seno %.0f Hz: bandas %#v, máximo fuera de %d", test.frequency, bands, test.band)
+				t.Fatalf("%.0f Hz sine: bands %#v, maximum outside %d", test.frequency, bands, test.band)
 			}
 		}
 	}

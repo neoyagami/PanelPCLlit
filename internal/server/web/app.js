@@ -33,8 +33,8 @@ function toggleFields(card) {
   target.removeAttribute('list');
   if (turn === 'app') target.setAttribute('list', 'audio-apps');
   if (turn === 'obs_input') target.setAttribute('list', 'obs-inputs');
-  card.querySelector('.target-label').textContent = turn === 'app' ? 'Aplicación' : 'Entrada OBS';
-  card.querySelector('.device-target-label').textContent = turn === 'output_device' ? 'Dispositivo de salida' : 'Dispositivo de entrada';
+  card.querySelector('.target-label').textContent = turn === 'app' ? 'Application' : 'OBS input';
+  card.querySelector('.device-target-label').textContent = turn === 'output_device' ? 'Output device' : 'Input device';
   populateDeviceSelect(card);
   const press = card.querySelector('.press-kind').value;
   card.querySelector('.press-target-wrap').classList.toggle('hidden', !['obs_scene', 'obs_toggle_input_mute', 'profile'].includes(press));
@@ -42,7 +42,7 @@ function toggleFields(card) {
   pressTarget.removeAttribute('list');
   if (press === 'profile') pressTarget.setAttribute('list', 'profile-names');
   if (press === 'obs_toggle_input_mute') pressTarget.setAttribute('list', 'obs-inputs');
-  card.querySelector('.press-target-label').textContent = press === 'profile' ? 'Perfil' : press === 'obs_scene' ? 'Escena OBS' : 'Entrada OBS';
+  card.querySelector('.press-target-label').textContent = press === 'profile' ? 'Profile' : press === 'obs_scene' ? 'OBS scene' : 'OBS input';
   card.querySelector('.shell-press-fields').classList.toggle('hidden', press !== 'shell');
 }
 
@@ -51,10 +51,10 @@ function toggleLightingMode() {
   const reactive = ['vu', 'spectrum'].includes(mode);
   document.querySelector('#dial-lighting-controls').classList.toggle('hidden', reactive);
   document.querySelector('#vu-controls').classList.toggle('hidden', !reactive);
-  document.querySelector('#lighting-title').textContent = mode === 'spectrum' ? 'Espectro RGB' : mode === 'vu' ? 'VU de nivel RGB' : 'RGB por dial';
+  document.querySelector('#lighting-title').textContent = mode === 'spectrum' ? 'RGB spectrum' : mode === 'vu' ? 'RGB level VU' : 'RGB per dial';
   document.querySelector('#reactive-help').textContent = mode === 'spectrum'
-    ? 'Cada anillo muestra una banda: graves, medios bajos, medios altos y agudos. Se usa un único stream y la salida USB se limita a este rate.'
-    : 'Los cuatro anillos forman una barra de nivel de izquierda a derecha. El capturador es continuo y la salida USB se limita a este rate.';
+    ? 'Each ring displays one band: bass, low mids, high mids, and treble. A single audio stream is used and USB output is limited to this rate.'
+    : 'The four rings form a left-to-right level bar. Audio capture is continuous and USB output is limited to this rate.';
   document.body.classList.toggle('vu-mode', reactive);
   toggleVUSource();
 }
@@ -63,7 +63,7 @@ function setLightingCollapsed(collapsed) {
   const panel = document.querySelector('.lighting-bar');
   const button = document.querySelector('#toggle-lighting');
   panel.classList.toggle('collapsed', collapsed);
-  button.textContent = collapsed ? 'Mostrar' : 'Ocultar';
+  button.textContent = collapsed ? 'Show' : 'Hide';
   button.setAttribute('aria-expanded', String(!collapsed));
 }
 
@@ -241,16 +241,16 @@ async function switchProfile(name) {
 }
 
 async function createProfile() {
-  const rawName = window.prompt('Nombre del nuevo perfil:');
+  const rawName = window.prompt('New profile name:');
   if (rawName === null) return;
   const name = rawName.trim();
   if (!name) {
-    showNotice('El nombre del perfil no puede estar vacío.');
+    showNotice('The profile name cannot be empty.');
     return;
   }
   config = readConfig();
   if (config.profiles[name]) {
-    showNotice(`Ya existe el perfil “${name}”.`);
+    showNotice(`The profile “${name}” already exists.`);
     return;
   }
   config.profiles[name] = { lighting: config.lighting, knobs: config.knobs };
@@ -266,7 +266,7 @@ async function save() {
     config = readConfig();
     await api('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
     setLightingCollapsed(true);
-    showNotice('Configuración guardada.', true);
+    showNotice('Configuration saved.', true);
   } catch (err) {
     showNotice(err.message);
   } finally {
@@ -280,17 +280,17 @@ async function refreshStatus() {
     if (status.activeProfile && status.activeProfile !== config.activeProfile) {
       config = await api('/api/config');
       renderProfile({ lighting: config.lighting, knobs: config.knobs });
-      showNotice(`Perfil “${config.activeProfile}” activado.`, true);
+      showNotice(`Profile “${config.activeProfile}” activated.`, true);
     }
     const pill = document.querySelector('#device-pill');
     pill.classList.toggle('connected', status.device.connected);
     pill.classList.toggle('error', Boolean(status.device.error));
-    pill.querySelector('b').textContent = status.device.connected ? (status.device.device || 'PCPanel conectado') : status.device.error ? 'Error de dispositivo' : 'PCPanel desconectado';
+    pill.querySelector('b').textContent = status.device.connected ? (status.device.device || 'PCPanel connected') : status.device.error ? 'Device error' : 'PCPanel disconnected';
     pill.title = status.device.error || '';
     const lightingMode = document.querySelector('#lighting-mode').value;
     document.querySelector('#last-event').textContent = lightingMode === 'spectrum'
-      ? `Espectro · ${(status.engine.spectrum || [0, 0, 0, 0]).map(value => Math.round(value * 100)).join(' · ')}%`
-      : lightingMode === 'vu' ? `VU ${Math.round((status.engine.vuLevel || 0) * 100)}%` : status.engine.lastEvent || 'Sin eventos todavía';
+      ? `Spectrum · ${(status.engine.spectrum || [0, 0, 0, 0]).map(value => Math.round(value * 100)).join(' · ')}%`
+      : lightingMode === 'vu' ? `VU ${Math.round((status.engine.vuLevel || 0) * 100)}%` : status.engine.lastEvent || 'No events yet';
     status.engine.values.forEach((value, index) => {
       setDial(cards[index], value);
       const level = lightingMode === 'spectrum'
@@ -322,11 +322,11 @@ function populateDeviceSelect(card) {
   const previous = select.value || card.dataset.audioTarget || '';
   const matching = audioDevices.filter(device => device.kind === wantedKind);
   select.replaceChildren();
-  const placeholder = new Option(matching.length ? 'Selecciona un dispositivo' : 'No hay dispositivos disponibles', '');
+  const placeholder = new Option(matching.length ? 'Select a device' : 'No devices available', '');
   placeholder.disabled = matching.length > 0;
   select.append(placeholder);
   matching.forEach(device => {
-    const state = device.state === 'running' ? ' · activo' : '';
+    const state = device.state === 'running' ? ' · active' : '';
     select.append(new Option(`${device.name}${state}`, device.id));
   });
   if (matching.some(device => device.id === previous)) {
@@ -344,11 +344,11 @@ function populateVUDeviceSelect() {
   const previous = select.value || select.dataset.target || '';
   const matching = audioDevices.filter(device => device.kind === wantedKind);
   select.replaceChildren();
-  const placeholder = new Option(matching.length ? 'Selecciona un dispositivo' : 'No hay dispositivos disponibles', '');
+  const placeholder = new Option(matching.length ? 'Select a device' : 'No devices available', '');
   placeholder.disabled = matching.length > 0;
   select.append(placeholder);
   matching.forEach(device => {
-    const state = device.state === 'running' ? ' · activo' : '';
+    const state = device.state === 'running' ? ' · active' : '';
     select.append(new Option(`${device.name}${state}`, device.id));
   });
   if (matching.some(device => device.id === previous)) select.value = previous;
@@ -421,7 +421,7 @@ async function init() {
       event.target.disabled = true;
       try {
         await api('/api/obs/test', { method: 'POST' });
-        showNotice('OBS respondió correctamente.', true);
+        showNotice('OBS responded successfully.', true);
       } catch (err) {
         showNotice(err.message);
       } finally {
@@ -437,7 +437,7 @@ async function init() {
     setInterval(loadAudioDevices, 10000);
     setInterval(loadOBSInputs, 15000);
   } catch (err) {
-    showNotice(`No se pudo iniciar: ${err.message}`);
+    showNotice(`Could not start: ${err.message}`);
   }
 }
 

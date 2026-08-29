@@ -52,8 +52,8 @@ func New(dev *device.Manager, aud *audio.Controller, cfg config.Config) *Engine 
 		audio:  aud,
 		obs:    obsws.New(cfg.OBS.URL, cfg.OBS.Password),
 		config: cfg,
-		// Una sola acción puede esperar detrás de la que está ejecutándose. Los
-		// giros posteriores permanecen coalescidos por knob en Run.
+		// Only one action may wait behind the currently running one. Subsequent
+		// turns remain coalesced per knob in Run.
 		work: make(chan job, 1),
 	}
 	e.vu = vumeter.New(aud.VUCaptureArgs, e.onVUFrame, e.onVUError)
@@ -107,7 +107,7 @@ func (e *Engine) Run(ctx context.Context) {
 				select {
 				case e.work <- j:
 				default:
-					e.setError("cola de acciones llena; click descartado")
+					e.setError("action queue full; click dropped")
 				}
 			}
 		case <-ticker.C:
@@ -123,7 +123,7 @@ func (e *Engine) Run(ctx context.Context) {
 						nextShell[knob] = now.Add(time.Duration(j.cfg.Turn.RateMS) * time.Millisecond)
 					}
 				default:
-					// Conserva sólo el valor absoluto más nuevo de cada knob.
+					// Retain only the latest absolute value for each knob.
 				}
 			}
 		}
@@ -290,7 +290,7 @@ func (e *Engine) press(knob config.Knob, index int) error {
 			return e.obs.Call("ToggleInputMute", map[string]any{"inputName": knob.Turn.Target})
 		}
 		if knob.Turn.Kind == "obs_filter" {
-			return fmt.Errorf("el control de filtro OBS no admite mute automático")
+			return fmt.Errorf("OBS filter controls do not support automatic mute")
 		}
 		return e.audio.ToggleMute(knob.Turn.Kind, knob.Turn.Target)
 	case "obs_scene":
@@ -306,13 +306,13 @@ func (e *Engine) press(knob config.Knob, index int) error {
 		switcher := e.switchProfile
 		e.configMu.RUnlock()
 		if switcher == nil {
-			return fmt.Errorf("el cambio de perfil no está disponible")
+			return fmt.Errorf("profile switching is not available")
 		}
 		return switcher(action.Target)
 	case "shell":
 		return shellcmd.Run(action.Command, e.currentValue(index))
 	default:
-		return fmt.Errorf("acción de click desconocida: %s", action.Kind)
+		return fmt.Errorf("unknown click action: %s", action.Kind)
 	}
 }
 
@@ -391,7 +391,7 @@ func (e *Engine) record(event device.Event) {
 		e.status.Values[event.Knob] = event.Value
 	}
 	if event.Initial {
-		e.status.LastEvent = fmt.Sprintf("posición inicial knob %d: %d", event.Knob+1, event.Value)
+		e.status.LastEvent = fmt.Sprintf("initial knob %d position: %d", event.Knob+1, event.Value)
 	} else {
 		e.status.LastEvent = fmt.Sprintf("%s knob %d: %d", event.Kind, event.Knob+1, event.Value)
 	}

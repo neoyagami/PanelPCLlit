@@ -127,12 +127,12 @@ func (c *Client) callLocked(requestType string, requestData map[string]any) (jso
 		},
 	}
 	if err := c.writeJSONLocked(request); err != nil {
-		return nil, fmt.Errorf("enviar solicitud OBS: %w", err)
+		return nil, fmt.Errorf("send OBS request: %w", err)
 	}
 	for {
 		env, err := c.readEnvelopeLocked()
 		if err != nil {
-			return nil, fmt.Errorf("leer respuesta OBS: %w", err)
+			return nil, fmt.Errorf("read OBS response: %w", err)
 		}
 		if env.Op != 7 {
 			continue
@@ -158,10 +158,10 @@ func (c *Client) connectLocked() error {
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("URL de OBS inválida: %w", err)
+		return fmt.Errorf("invalid OBS URL: %w", err)
 	}
 	if u.Scheme != "ws" && u.Scheme != "wss" {
-		return errors.New("la URL de OBS debe comenzar con ws:// o wss://")
+		return errors.New("the OBS URL must start with ws:// or wss://")
 	}
 	host := u.Host
 	if !strings.Contains(host, ":") {
@@ -176,13 +176,13 @@ func (c *Client) connectLocked() error {
 	dialer := net.Dialer{}
 	conn, err := dialer.DialContext(ctx, "tcp", host)
 	if err != nil {
-		return fmt.Errorf("conectar a %s: %w", host, err)
+		return fmt.Errorf("connect to %s: %w", host, err)
 	}
 	if u.Scheme == "wss" {
 		tlsConn := tls.Client(conn, &tls.Config{ServerName: u.Hostname(), MinVersion: tls.VersionTLS12})
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			conn.Close()
-			return fmt.Errorf("TLS de OBS: %w", err)
+			return fmt.Errorf("OBS TLS: %w", err)
 		}
 		conn = tlsConn
 	}
@@ -199,11 +199,11 @@ func (c *Client) connectLocked() error {
 	hello, err := c.readEnvelopeLocked()
 	if err != nil {
 		c.closeLocked()
-		return fmt.Errorf("saludo de OBS: %w", err)
+		return fmt.Errorf("OBS greeting: %w", err)
 	}
 	if hello.Op != 0 {
 		c.closeLocked()
-		return fmt.Errorf("OBS envió op %d en vez de Hello", hello.Op)
+		return fmt.Errorf("OBS sent op %d instead of Hello", hello.Op)
 	}
 	var data helloData
 	if err := json.Unmarshal(hello.D, &data); err != nil {
@@ -221,11 +221,11 @@ func (c *Client) connectLocked() error {
 	identified, err := c.readEnvelopeLocked()
 	if err != nil {
 		c.closeLocked()
-		return fmt.Errorf("autenticación de OBS: %w", err)
+		return fmt.Errorf("OBS authentication: %w", err)
 	}
 	if identified.Op != 2 {
 		c.closeLocked()
-		return fmt.Errorf("OBS rechazó la identificación (op %d)", identified.Op)
+		return fmt.Errorf("OBS rejected identification (op %d)", identified.Op)
 	}
 	c.conn.SetDeadline(time.Time{})
 	return nil
@@ -267,12 +267,12 @@ func websocketHandshake(conn net.Conn, u *url.URL) (*bufio.Reader, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusSwitchingProtocols {
-		return nil, fmt.Errorf("OBS respondió HTTP %s", resp.Status)
+		return nil, fmt.Errorf("OBS returned HTTP %s", resp.Status)
 	}
 	wantRaw := sha1.Sum([]byte(key + websocketGUID))
 	want := base64.StdEncoding.EncodeToString(wantRaw[:])
 	if !strings.EqualFold(resp.Header.Get("Sec-WebSocket-Accept"), want) {
-		return nil, errors.New("handshake WebSocket de OBS inválido")
+		return nil, errors.New("invalid OBS WebSocket handshake")
 	}
 	return reader, nil
 }
@@ -303,9 +303,9 @@ func (c *Client) readEnvelopeLocked() (envelope, error) {
 				code := binary.BigEndian.Uint16(data[:2])
 				reason := strings.TrimSpace(string(data[2:]))
 				if reason != "" {
-					return envelope{}, fmt.Errorf("WebSocket cerrado por OBS (%d): %s", code, reason)
+					return envelope{}, fmt.Errorf("WebSocket closed by OBS (%d): %s", code, reason)
 				}
-				return envelope{}, fmt.Errorf("WebSocket cerrado por OBS (%d)", code)
+				return envelope{}, fmt.Errorf("WebSocket closed by OBS (%d)", code)
 			}
 			return envelope{}, io.EOF
 		case 9:
@@ -356,7 +356,7 @@ func readFrame(r *bufio.Reader) (byte, []byte, error) {
 		return 0, nil, err
 	}
 	if first&0x80 == 0 {
-		return 0, nil, errors.New("frames WebSocket fragmentados no soportados")
+		return 0, nil, errors.New("fragmented WebSocket frames are not supported")
 	}
 	length := uint64(second & 0x7f)
 	if length == 126 {
@@ -371,7 +371,7 @@ func readFrame(r *bufio.Reader) (byte, []byte, error) {
 		}
 	}
 	if length > 1024*1024 {
-		return 0, nil, errors.New("frame WebSocket demasiado grande")
+		return 0, nil, errors.New("WebSocket frame is too large")
 	}
 	var mask [4]byte
 	masked := second&0x80 != 0

@@ -41,7 +41,7 @@ func TestIndexDoesNotCacheAndContainsToken(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), srv.token) {
-		t.Fatalf("índice inválido: status %d", rec.Code)
+		t.Fatalf("invalid index: status %d", rec.Code)
 	}
 	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
 		t.Fatalf("Cache-Control = %q", got)

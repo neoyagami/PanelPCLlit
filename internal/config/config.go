@@ -10,7 +10,9 @@ import (
 	"strings"
 )
 
-const Version = 4
+const Version = 5
+
+const defaultProfileName = "Main"
 
 type Config struct {
 	Version       int                `json:"version"`
@@ -101,8 +103,8 @@ func Default() Config {
 		},
 		Knobs: knobs,
 	}
-	cfg.ActiveProfile = "Principal"
-	cfg.Profiles = map[string]Profile{"Principal": {Lighting: cfg.Lighting, Knobs: cfg.Knobs}}
+	cfg.ActiveProfile = defaultProfileName
+	cfg.Profiles = map[string]Profile{defaultProfileName: {Lighting: cfg.Lighting, Knobs: cfg.Knobs}}
 	return cfg
 }
 
@@ -115,16 +117,16 @@ func Path() (string, error) {
 }
 
 func Load(path string) (Config, error) {
-	cfg := Default()
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return cfg, nil
+		return Default(), nil
 	}
 	if err != nil {
 		return Config{}, err
 	}
+	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return Config{}, fmt.Errorf("leer configuración: %w", err)
+		return Config{}, fmt.Errorf("read configuration: %w", err)
 	}
 	cfg.Normalize()
 	return cfg, nil
@@ -157,9 +159,20 @@ func (c *Config) Normalize() {
 	}
 	c.normalizeActive(oldVersion)
 	if oldVersion < 4 || len(c.Profiles) == 0 {
-		c.ActiveProfile = "Principal"
-		c.Profiles = map[string]Profile{"Principal": {Lighting: c.Lighting, Knobs: c.Knobs}}
+		c.ActiveProfile = defaultProfileName
+		c.Profiles = map[string]Profile{defaultProfileName: {Lighting: c.Lighting, Knobs: c.Knobs}}
 		return
+	}
+	if oldVersion < 5 {
+		if legacy, exists := c.Profiles["Principal"]; exists {
+			if _, conflict := c.Profiles[defaultProfileName]; !conflict {
+				c.Profiles[defaultProfileName] = legacy
+				delete(c.Profiles, "Principal")
+				if c.ActiveProfile == "Principal" {
+					c.ActiveProfile = defaultProfileName
+				}
+			}
+		}
 	}
 	if strings.TrimSpace(c.ActiveProfile) == "" {
 		c.ActiveProfile = firstProfileName(c.Profiles)
@@ -172,8 +185,8 @@ func (c *Config) Normalize() {
 		tmp.normalizeActive(Version)
 		c.Profiles[name] = Profile{Lighting: tmp.Lighting, Knobs: tmp.Knobs}
 	}
-	// La raíz es la copia activa usada por el motor y la interfaz. En un PUT es
-	// también la edición más reciente del perfil seleccionado.
+	// The root is the active copy used by the engine and interface. On PUT it is
+	// also the most recent edit of the selected profile.
 	c.Profiles[c.ActiveProfile] = Profile{Lighting: c.Lighting, Knobs: c.Knobs}
 }
 
@@ -292,7 +305,7 @@ func (c *Config) ActivateProfile(name string) error {
 	name = strings.TrimSpace(name)
 	profile, exists := c.Profiles[name]
 	if !exists {
-		return fmt.Errorf("no existe el perfil %q", name)
+		return fmt.Errorf("profile %q does not exist", name)
 	}
 	c.ActiveProfile = name
 	c.Lighting = profile.Lighting
@@ -318,7 +331,7 @@ func firstProfileName(profiles map[string]Profile) string {
 		}
 	}
 	if len(names) == 0 {
-		return "Principal"
+		return defaultProfileName
 	}
 	sort.Strings(names)
 	return names[0]

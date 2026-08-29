@@ -87,14 +87,14 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 func (s *Server) authorize(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-PanelPC-Token") != s.token {
-			http.Error(w, "no autorizado", http.StatusUnauthorized)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		if origin := r.Header.Get("Origin"); origin != "" {
 			allowedHTTP := "http://" + r.Host
 			allowedHTTPS := "https://" + r.Host
 			if origin != allowedHTTP && origin != allowedHTTPS {
-				http.Error(w, "origen no permitido", http.StatusForbidden)
+				http.Error(w, "origin not allowed", http.StatusForbidden)
 				return
 			}
 		}
@@ -110,19 +110,19 @@ func (s *Server) getConfig(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		http.Error(w, "se requiere application/json", http.StatusUnsupportedMediaType)
+		http.Error(w, "application/json is required", http.StatusUnsupportedMediaType)
 		return
 	}
 	var cfg config.Config
 	decoder := json.NewDecoder(io.LimitReader(r.Body, 64*1024))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&cfg); err != nil {
-		http.Error(w, "configuración inválida: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid configuration: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	cfg.Normalize()
 	if err := config.Save(s.configPath, cfg); err != nil {
-		http.Error(w, "guardar configuración: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "save configuration: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	s.configMu.Lock()
@@ -153,7 +153,7 @@ func (s *Server) switchProfile(name string) error {
 	}
 	if err := config.Save(s.configPath, cfg); err != nil {
 		s.configMu.Unlock()
-		return fmt.Errorf("guardar perfil activo: %w", err)
+		return fmt.Errorf("save active profile: %w", err)
 	}
 	s.config = cfg
 	s.configMu.Unlock()
@@ -186,7 +186,7 @@ func (s *Server) postTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if event.Knob < 0 || event.Knob > 3 || (event.Kind != "turn" && event.Kind != "press") || event.Value < 0 || event.Value > 255 {
-		http.Error(w, "evento de prueba inválido", http.StatusBadRequest)
+		http.Error(w, "invalid test event", http.StatusBadRequest)
 		return
 	}
 	s.engine.Inject(event)
@@ -213,7 +213,7 @@ func (s *Server) getOBSInputs(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) getOBSFilters(w http.ResponseWriter, r *http.Request) {
 	source := strings.TrimSpace(r.URL.Query().Get("source"))
 	if source == "" {
-		http.Error(w, "falta source", http.StatusBadRequest)
+		http.Error(w, "source is required", http.StatusBadRequest)
 		return
 	}
 	filters, err := s.engine.OBSFilters(source)
@@ -247,7 +247,7 @@ func localOnly(next http.Handler) http.Handler {
 		host = strings.Trim(host, "[]")
 		ip := net.ParseIP(host)
 		if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
-			http.Error(w, "host no permitido", http.StatusForbidden)
+			http.Error(w, "host not allowed", http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -258,7 +258,7 @@ func recoverer(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				log.Printf("panic HTTP: %v", recovered)
+				log.Printf("HTTP panic: %v", recovered)
 				http.Error(w, fmt.Sprint(recovered), http.StatusInternalServerError)
 			}
 		}()

@@ -87,7 +87,7 @@ func (c *Controller) SetVolume(kind, target string, percent float64) error {
 		if err == nil {
 			matches := matchApps(apps, target)
 			if len(matches) == 0 {
-				err = fmt.Errorf("no hay canal de audio que coincida con %q", target)
+				err = fmt.Errorf("no audio stream matches %q", target)
 			} else {
 				for _, app := range matches {
 					if callErr := command("pactl", "set-sink-input-volume", strconv.FormatUint(uint64(app.ID), 10), fmt.Sprintf("%.1f%%", percent)); callErr != nil {
@@ -98,7 +98,7 @@ func (c *Controller) SetVolume(kind, target string, percent float64) error {
 			}
 		}
 	default:
-		err = fmt.Errorf("tipo de volumen desconocido: %s", kind)
+		err = fmt.Errorf("unknown volume type: %s", kind)
 	}
 	c.setError(err)
 	return err
@@ -121,7 +121,7 @@ func (c *Controller) ToggleMute(kind, target string) error {
 		if err == nil {
 			matches := matchApps(apps, target)
 			if len(matches) == 0 {
-				err = fmt.Errorf("no hay canal de audio que coincida con %q", target)
+				err = fmt.Errorf("no audio stream matches %q", target)
 			} else {
 				for _, app := range matches {
 					if callErr := command("pactl", "set-sink-input-mute", strconv.FormatUint(uint64(app.ID), 10), "toggle"); callErr != nil {
@@ -132,7 +132,7 @@ func (c *Controller) ToggleMute(kind, target string) error {
 			}
 		}
 	default:
-		err = fmt.Errorf("no se puede silenciar %s", kind)
+		err = fmt.Errorf("cannot mute %s", kind)
 	}
 	c.setError(err)
 	return err
@@ -151,11 +151,11 @@ func (c *Controller) Apps(force bool) ([]App, error) {
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "pactl", "--format=json", "list", "sink-inputs").Output()
 	if err != nil {
-		return nil, fmt.Errorf("listar aplicaciones con pactl: %w", err)
+		return nil, fmt.Errorf("list applications with pactl: %w", err)
 	}
 	var streams []pactlStream
 	if err := json.Unmarshal(out, &streams); err != nil {
-		return nil, fmt.Errorf("respuesta inválida de pactl: %w", err)
+		return nil, fmt.Errorf("invalid pactl response: %w", err)
 	}
 	apps := make([]App, 0, len(streams))
 	for _, stream := range streams {
@@ -208,8 +208,8 @@ func (c *Controller) Devices(force bool) ([]Device, error) {
 	return append([]Device(nil), devices...), nil
 }
 
-// VUCaptureArgs resuelve una selección estable de la interfaz a los argumentos
-// de parec. PipeWire expone esta interfaz por su servidor compatible con PulseAudio.
+// VUCaptureArgs resolves a stable interface selection to parec arguments.
+// PipeWire exposes this interface through its PulseAudio-compatible server.
 func (c *Controller) VUCaptureArgs(kind, target string) ([]string, error) {
 	switch kind {
 	case "output":
@@ -223,7 +223,7 @@ func (c *Controller) VUCaptureArgs(kind, target string) ([]string, error) {
 		}
 		matches := matchApps(apps, target)
 		if len(matches) == 0 {
-			return nil, fmt.Errorf("no hay canal de audio que coincida con %q", target)
+			return nil, fmt.Errorf("no audio stream matches %q", target)
 		}
 		return []string{"--monitor-stream=" + strconv.FormatUint(uint64(matches[0].ID), 10)}, nil
 	case "output_device", "input_device":
@@ -245,9 +245,9 @@ func (c *Controller) VUCaptureArgs(kind, target string) ([]string, error) {
 			}
 			return []string{"--device=" + capture}, nil
 		}
-		return nil, fmt.Errorf("no existe el dispositivo de %s %q", wantedKind, target)
+		return nil, fmt.Errorf("%s device %q does not exist", wantedKind, target)
 	default:
-		return nil, fmt.Errorf("fuente VU desconocida: %s", kind)
+		return nil, fmt.Errorf("unknown VU source: %s", kind)
 	}
 }
 
@@ -256,7 +256,7 @@ func listDevices(kind, object string) ([]Device, error) {
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "pactl", "--format=json", "list", object).Output()
 	if err != nil {
-		return nil, fmt.Errorf("listar %s con pactl: %w", object, err)
+		return nil, fmt.Errorf("list %s with pactl: %w", object, err)
 	}
 	return parseDevices(out, kind)
 }
@@ -264,7 +264,7 @@ func listDevices(kind, object string) ([]Device, error) {
 func parseDevices(data []byte, kind string) ([]Device, error) {
 	var raw []pactlDevice
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("respuesta inválida de pactl: %w", err)
+		return nil, fmt.Errorf("invalid pactl response: %w", err)
 	}
 	devices := make([]Device, 0, len(raw))
 	for _, item := range raw {
@@ -309,7 +309,7 @@ func command(name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		if ctx.Err() != nil {
-			return fmt.Errorf("%s excedió 1.5 s", name)
+			return fmt.Errorf("%s exceeded 1.5 s", name)
 		}
 		message := strings.TrimSpace(string(output))
 		if message == "" {

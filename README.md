@@ -2,9 +2,11 @@
 
 PanelPC is a small native Linux controller for the PCPanel Lite/Mini with four clickable RGB knobs. It controls PipeWire/PulseAudio audio, device lighting, and OBS Studio through WebSocket 5 from an embedded local web interface.
 
+![PanelPC web interface showing four side-by-side knob controls, RGB spectrum mode, and OBS integration](assets/interface.png)
+
 ## Motivation
 
-PanelPC exists because the two available solutions we tested—the official application and a community alternative—did not work adequately on Linux. The observed problems included an impractical interface, poor PipeWire/PulseAudio channel selection, limited OBS integration, and, during one test, a system that became unresponsive when a knob was moved even after the `udev` rules had been configured.
+PanelPC exists because the two available solutions we tested—the official application and a community alternative—did not work adequately on Linux. The observed problems included an impractical interface, poor PipeWire/PulseAudio channel selection, limited OBS integration, and, during one test, a system that became unresponsive when a knob was moved.
 
 This project was built specifically for Linux and communicates directly with `hidraw`, PipeWire/PulseAudio, and OBS WebSocket. It does not capture keyboard or mouse input and does not depend on an application primarily designed for another operating system.
 
@@ -58,17 +60,45 @@ The interface opens at `http://127.0.0.1:8765`. To run without opening a browser
 ./build/panelpc -no-browser
 ```
 
-## Device permissions
+## Installing a release
 
-Install the included rule:
+Download the ZIP for your architecture from the GitHub Releases page, verify the published checksum, extract it, and inspect the installer before running it:
 
 ```bash
-sudo install -m 0644 packaging/70-panelpc.rules /etc/udev/rules.d/70-panelpc.rules
-sudo udevadm control --reload-rules
-sudo udevadm trigger --subsystem-match=hidraw
+sha256sum -c SHA256SUMS
+unzip panelpc-linux-amd64.zip
+cd panelpc-linux-amd64
+less install.sh
+./install.sh --user
 ```
 
-The rule uses `TAG+="uaccess"`; it does not use the unsafe `MODE="0666"` setting or grant access to every HID device. Reconnect the PCPanel and confirm that the interface reports it as connected.
+The rootless `--user` installation is the default and recommended mode everywhere. It places the binary in `~/.local/bin`, installs a systemd user unit, and starts PanelPC in the current desktop session.
+
+### Bazzite and other immutable/stateless distributions
+
+Use the rootless installation:
+
+```bash
+./install.sh --user
+```
+
+This mode is designed for Bazzite, Fedora Atomic desktops such as Silverblue and Kinoite, SteamOS, and similar systems. It writes only to the user's home directory, survives operating-system image updates, and does not use `rpm-ostree`, layering, or writable overlays.
+
+### Traditional distributions
+
+The same `--user` mode is recommended on Fedora, Ubuntu, Debian, Arch Linux, and other conventional distributions. An optional system-wide binary installation is available:
+
+```bash
+./install.sh --system
+```
+
+Do not run the installer itself with `sudo`. In `--system` mode it requests `sudo` only while copying the binary to `/usr/local/bin`; PanelPC still runs as a systemd user service so it can access the user's PipeWire session and OBS instance.
+
+### No drivers or device-permission changes
+
+PanelPC does **not** install a kernel module, USB driver, HID driver, or background input driver. There is no `udev` rule in this repository, and the installer does not create, edit, reload, or remove one. No `MODE="0666"`, custom group membership, or broad HID permission change is applied.
+
+You do not need to install drivers or change `udev` configuration. PanelPC uses the device access already provided to the active desktop session. If a distribution reports a permission error, do not run PanelPC as root and do not grant global access to every `hidraw` device; open an issue with the distribution, desktop session, and device information instead.
 
 ## Audio
 
@@ -158,15 +188,22 @@ Each ring changes intensity independently, so bass hits, voices, instruments, an
 
 Each profile stores all four assignments and the complete lighting configuration, including level-meter and spectrum modes. OBS settings and its password are global. The top selector changes the active profile, while **New profile** copies the currently visible configuration. A knob click can also use the **Switch profile** action, and the change is persisted immediately.
 
-## Automatic startup
+## Safety recommendations
 
-After copying the binary to `~/.local/bin/panelpc`, install the user service:
-
-```bash
-mkdir -p ~/.config/systemd/user
-cp packaging/panelpc.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now panelpc.service
-```
+- **Do not run PanelPC or `install.sh` as root.** Audio, OBS, and desktop-session permissions belong to the logged-in user.
+- Do not run PanelPC at the same time as another PCPanel controller. Two processes competing for the same HID device can produce unreliable behavior.
+- Keep the web interface on its default loopback address. Do not expose it to a LAN or the internet.
+- Shell actions intentionally execute `/bin/sh -c`. Review every configured command and never paste untrusted commands into the interface.
+- Inspect `install.sh` and verify `SHA256SUMS` before installing a downloaded release.
+- Do not apply unrelated driver, group, or `udev` instructions from another PCPanel application to PanelPC.
 
 The configuration, including the OBS password, is stored with `0600` permissions in `~/.config/panelpc/config.json`. The API listens only on loopback and requires a random token embedded into the page when PanelPC starts.
+
+## Continuous integration and release ZIPs
+
+The GitHub Actions workflow runs the full test suite with Go's race detector and runs `go vet`. After those checks pass, it builds static Linux binaries for `amd64` and `arm64` and produces:
+
+- `panelpc-linux-amd64.zip`
+- `panelpc-linux-arm64.zip`
+
+Each archive contains the binary, `install.sh`, the systemd user-service template, this README, and its interface screenshot. Pushes and pull requests retain the ZIPs as CI artifacts. Pushing a tag beginning with `v`, such as `v0.1.0`, creates a GitHub Release containing both ZIPs and `SHA256SUMS`.

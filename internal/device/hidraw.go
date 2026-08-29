@@ -60,12 +60,12 @@ func NewManager() *Manager {
 
 func (m *Manager) Events() <-chan Event { return m.events }
 
-// Inject alimenta el mismo canal acotado que el hardware. Se usa para probar
-// una configuración desde la interfaz sin requerir que el PCPanel esté conectado.
+// Inject feeds the same bounded channel as the hardware. The web interface uses
+// it to test a configuration without requiring a connected PCPanel.
 func (m *Manager) Inject(event Event) { m.emit(event) }
 
-// SetLighting conserva sólo la configuración RGB más nueva. El canal de salida
-// tiene capacidad uno, igual que la cola de acciones, para impedir backlog USB.
+// SetLighting retains only the latest RGB configuration. The output channel has
+// capacity one, like the action queue, to prevent a USB backlog.
 func (m *Manager) SetLighting(lighting Lighting) {
 	m.mu.Lock()
 	m.desired = lighting
@@ -96,8 +96,8 @@ func (m *Manager) emit(event Event) {
 	select {
 	case m.events <- event:
 	default:
-		// La entrada física jamás puede bloquear al lector HID. Si la cola está
-		// llena conservamos los eventos futuros, que llevan el valor absoluto.
+		// Physical input must never block the HID reader. If the queue is full,
+		// future events are retained because they carry the absolute value.
 	}
 }
 
@@ -130,7 +130,7 @@ func (m *Manager) Run(ctx context.Context) {
 		m.setStatus(Status{Connected: true, Device: name})
 		if err := writeReport(ctx, fd, []byte{1}); err != nil {
 			syscall.Close(fd)
-			m.setStatus(Status{Device: name, Error: "inicializar HID: " + err.Error()})
+			m.setStatus(Status{Device: name, Error: "initialize HID: " + err.Error()})
 			sleepContext(ctx, time.Second)
 			continue
 		}
@@ -140,7 +140,7 @@ func (m *Manager) Run(ctx context.Context) {
 			m.mu.RUnlock()
 			if err := writeReport(ctx, fd, BuildMiniLightingReport(initialLighting)); err != nil {
 				syscall.Close(fd)
-				m.setStatus(Status{Device: name, Error: "configurar RGB: " + err.Error()})
+				m.setStatus(Status{Device: name, Error: "configure RGB: " + err.Error()})
 				sleepContext(ctx, time.Second)
 				continue
 			}
@@ -170,7 +170,7 @@ func (m *Manager) readLoop(ctx context.Context, fd int, product string) error {
 				case lighting := <-m.lighting:
 					if product == productMini {
 						if err := writeReport(ctx, fd, BuildMiniLightingReport(lighting)); err != nil {
-							return fmt.Errorf("escribir RGB: %w", err)
+							return fmt.Errorf("write RGB: %w", err)
 						}
 					}
 				case <-time.After(10 * time.Millisecond):
@@ -186,8 +186,8 @@ func (m *Manager) readLoop(ctx context.Context, fd int, product string) error {
 		if !ok {
 			continue
 		}
-		// El firmware anuncia posiciones al conectar. Se usan como línea base y
-		// no se ejecutan acciones durante una breve ventana de inicialización.
+		// The firmware announces positions when connected. Use them as a baseline
+		// and do not execute actions during a short initialization window.
 		if time.Since(connectedAt) < 400*time.Millisecond {
 			if event.Kind == "turn" && event.Knob < len(last) {
 				last[event.Knob], seen[event.Knob] = event.Value, true
@@ -210,7 +210,7 @@ func (m *Manager) readLoop(ctx context.Context, fd int, product string) error {
 		case lighting := <-m.lighting:
 			if product == productMini {
 				if err := writeReport(ctx, fd, BuildMiniLightingReport(lighting)); err != nil {
-					return fmt.Errorf("escribir RGB: %w", err)
+					return fmt.Errorf("write RGB: %w", err)
 				}
 			}
 		default:
@@ -264,7 +264,7 @@ func findDevice() (path, name, product string, err error) {
 
 func BuildMiniLightingReport(lighting Lighting) []byte {
 	report := make([]byte, 64)
-	report[0], report[1] = 6, 2 // Mini, iluminación custom de knobs
+	report[0], report[1] = 6, 2 // Mini, custom knob lighting
 	brightness := lighting.GlobalBrightness
 	if brightness < 0 {
 		brightness = 0
@@ -282,7 +282,7 @@ func BuildMiniLightingReport(lighting Lighting) []byte {
 			report[offset] = 2 // gradiente de volumen: negro -> color
 			report[offset+4], report[offset+5], report[offset+6] = byte(r), byte(g), byte(b)
 		} else {
-			report[offset] = 1 // color estático
+			report[offset] = 1 // static color
 			report[offset+1], report[offset+2], report[offset+3] = byte(r), byte(g), byte(b)
 		}
 	}
@@ -310,7 +310,7 @@ func writeReport(ctx context.Context, fd int, data []byte) error {
 		n, err := syscall.Write(fd, report)
 		if err == nil {
 			if n != len(report) {
-				return fmt.Errorf("escritura HID parcial: %d de %d bytes", n, len(report))
+				return fmt.Errorf("partial HID write: %d of %d bytes", n, len(report))
 			}
 			return nil
 		}
@@ -318,7 +318,7 @@ func writeReport(ctx context.Context, fd int, data []byte) error {
 			return err
 		}
 		if time.Now().After(deadline) {
-			return errors.New("timeout de escritura HID")
+			return errors.New("HID write timed out")
 		}
 		if !sleepContext(ctx, 5*time.Millisecond) {
 			return ctx.Err()

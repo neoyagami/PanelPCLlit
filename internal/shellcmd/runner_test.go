@@ -10,6 +10,6 @@ func TestRunExposesLevels(t *testing.T) {
 
 func TestRunRejectsEmptyCommand(t *testing.T) {
 	if err := Run("  ", 0); err == nil {
-		t.Fatal("se esperaba error para comando vacío")
+		t.Fatal("expected an error for an empty command")
 	}
 }

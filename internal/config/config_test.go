@@ -9,7 +9,7 @@ import (
 func TestSaveLoadRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "config.json")
 	want := Default()
-	want.Knobs[0].Label = "Música"
+	want.Knobs[0].Label = "Music"
 	want.Knobs[0].Turn = TurnAction{Kind: "app", Target: "Spotify", MinPercent: 5, MaxPercent: 90}
 	if err := Save(path, want); err != nil {
 		t.Fatal(err)
@@ -19,14 +19,14 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if info.Mode().Perm() != 0o600 {
-		t.Fatalf("permisos = %o, se esperaba 600", info.Mode().Perm())
+		t.Fatalf("permissions = %o, expected 600", info.Mode().Perm())
 	}
 	got, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got.Knobs[0] != want.Knobs[0] {
-		t.Fatalf("round trip distinto: %#v != %#v", got.Knobs[0], want.Knobs[0])
+		t.Fatalf("round trip differs: %#v != %#v", got.Knobs[0], want.Knobs[0])
 	}
 }
 
@@ -36,13 +36,13 @@ func TestNormalizeLimits(t *testing.T) {
 	cfg.Knobs[0].Turn.MaxPercent = -10
 	cfg.Normalize()
 	if cfg.Knobs[0].Turn.MinPercent != 0 || cfg.Knobs[0].Turn.MaxPercent != 120 {
-		t.Fatalf("rango inesperado: %#v", cfg.Knobs[0].Turn)
+		t.Fatalf("unexpected range: %#v", cfg.Knobs[0].Turn)
 	}
 }
 
 func TestVersionOneMigratesLightingDefaults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
-	legacy := []byte(`{"version":1,"obs":{"url":"ws://127.0.0.1:4455"},"knobs":[{"label":"Uno","turn":{"kind":"none"},"press":{"kind":"none"}},{},{},{}]}`)
+	legacy := []byte(`{"version":1,"obs":{"url":"ws://127.0.0.1:4455"},"knobs":[{"label":"One","turn":{"kind":"none"},"press":{"kind":"none"}},{},{},{}]}`)
 	if err := os.WriteFile(path, legacy, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestVersionOneMigratesLightingDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.Version != Version || cfg.Lighting.GlobalBrightness != 80 || cfg.Lighting.VU.Brightness != 80 || cfg.Knobs[0].Light.Color == "" {
-		t.Fatalf("migración incompleta: %#v", cfg)
+		t.Fatalf("incomplete migration: %#v", cfg)
 	}
 }
 
@@ -66,7 +66,7 @@ func TestVersionTwoMigratesVUDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.Lighting.Mode != "dials" || cfg.Lighting.VU.Brightness != 80 || cfg.Lighting.VU.MinDB != -48 || cfg.Lighting.VU.FPS != 20 {
-		t.Fatalf("migración VU incompleta: %#v", cfg.Lighting)
+		t.Fatalf("incomplete VU migration: %#v", cfg.Lighting)
 	}
 }
 
@@ -76,23 +76,41 @@ func TestNormalizeShellRate(t *testing.T) {
 	cfg.Knobs[1].Turn = TurnAction{Kind: "shell", RateMS: 70000}
 	cfg.Normalize()
 	if cfg.Knobs[0].Turn.RateMS != 50 || cfg.Knobs[1].Turn.RateMS != 60000 {
-		t.Fatalf("rates inesperados: %d, %d", cfg.Knobs[0].Turn.RateMS, cfg.Knobs[1].Turn.RateMS)
+		t.Fatalf("unexpected rates: %d, %d", cfg.Knobs[0].Turn.RateMS, cfg.Knobs[1].Turn.RateMS)
 	}
 }
 
 func TestActivateProfile(t *testing.T) {
 	cfg := Default()
-	night := cfg.Profiles["Principal"]
-	night.Knobs[0].Label = "Noche"
+	night := cfg.Profiles[defaultProfileName]
+	night.Knobs[0].Label = "Night"
 	night.Lighting.Mode = "vu"
-	cfg.Profiles["Noche"] = night
-	if err := cfg.ActivateProfile("Noche"); err != nil {
+	cfg.Profiles["Night"] = night
+	if err := cfg.ActivateProfile("Night"); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ActiveProfile != "Noche" || cfg.Knobs[0].Label != "Noche" || cfg.Lighting.Mode != "vu" {
-		t.Fatalf("perfil no activado: %#v", cfg)
+	if cfg.ActiveProfile != "Night" || cfg.Knobs[0].Label != "Night" || cfg.Lighting.Mode != "vu" {
+		t.Fatalf("profile was not activated: %#v", cfg)
 	}
-	if err := cfg.ActivateProfile("No existe"); err == nil {
-		t.Fatal("se esperaba error para un perfil inexistente")
+	if err := cfg.ActivateProfile("Does not exist"); err == nil {
+		t.Fatal("expected an error for a nonexistent profile")
+	}
+}
+
+func TestVersionFourRenamesLegacyDefaultProfile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	legacy := []byte(`{"version":4,"activeProfile":"Principal","profiles":{"Principal":{"lighting":{"globalBrightness":80,"mode":"dials"},"knobs":[{},{},{},{}]}},"lighting":{"globalBrightness":80,"mode":"dials"},"knobs":[{},{},{},{}]}`)
+	if err := os.WriteFile(path, legacy, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ActiveProfile != defaultProfileName {
+		t.Fatalf("active profile = %q, want %q", cfg.ActiveProfile, defaultProfileName)
+	}
+	if _, exists := cfg.Profiles["Principal"]; exists {
+		t.Fatal("legacy default profile was not renamed")
 	}
 }

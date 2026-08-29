@@ -117,12 +117,12 @@ func (m *Meter) captureOnce(ctx context.Context, cfg Config) error {
 	cmd := exec.CommandContext(ctx, "parec", args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("crear captura VU: %w", err)
+		return fmt.Errorf("create VU capture: %w", err)
 	}
 	var stderr limitedBuffer
 	cmd.Stderr = &stderr
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("iniciar parec: %w", err)
+		return fmt.Errorf("start parec: %w", err)
 	}
 
 	// 20 ms de float32 mono a 48 kHz. io.ReadFull evita interpretar muestras
@@ -140,7 +140,7 @@ func (m *Meter) captureOnce(ctx context.Context, cfg Config) error {
 				return ctx.Err()
 			}
 			if waitErr == nil && errors.Is(readErr, io.EOF) {
-				return errors.New("parec terminó sin datos")
+				return errors.New("parec exited without producing data")
 			}
 			message := bytes.TrimSpace(stderr.Bytes())
 			if len(message) > 0 {
@@ -149,7 +149,7 @@ func (m *Meter) captureOnce(ctx context.Context, cfg Config) error {
 			if waitErr != nil {
 				return fmt.Errorf("parec: %w", waitErr)
 			}
-			return fmt.Errorf("leer audio VU: %w", readErr)
+			return fmt.Errorf("read VU audio: %w", readErr)
 		}
 
 		frame := analyzeFrame(buffer, cfg.MinDB, cfg.MaxDB)

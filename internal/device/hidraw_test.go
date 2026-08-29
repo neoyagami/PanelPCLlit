@@ -28,7 +28,7 @@ func TestInjectIsBounded(t *testing.T) {
 		m.Inject(Event{Kind: "turn", Knob: 0, Value: i % 256})
 	}
 	if got := len(m.events); got != cap(m.events) {
-		t.Fatalf("cola = %d, capacidad = %d", got, cap(m.events))
+		t.Fatalf("queue = %d, capacity = %d", got, cap(m.events))
 	}
 }
 
@@ -38,7 +38,7 @@ func TestMiniLightingReport(t *testing.T) {
 	lighting.Knobs[1] = KnobLight{Color: "#00ff00", TrackValue: true}
 	report := BuildMiniLightingReport(lighting)
 	if len(report) != 64 {
-		t.Fatalf("largo = %d", len(report))
+		t.Fatalf("length = %d", len(report))
 	}
 	wantStatic := []byte{6, 2, 1, 127, 64, 32, 0, 0, 0}
 	for i, want := range wantStatic {
@@ -61,9 +61,9 @@ func TestLightingQueueKeepsLatest(t *testing.T) {
 		m.SetLighting(Lighting{GlobalBrightness: i})
 	}
 	if got := len(m.lighting); got != 1 {
-		t.Fatalf("cola RGB = %d, want 1", got)
+		t.Fatalf("RGB queue = %d, want 1", got)
 	}
 	if got := (<-m.lighting).GlobalBrightness; got != 99 {
-		t.Fatalf("brillo = %d, want 99", got)
+		t.Fatalf("brightness = %d, want 99", got)
 	}
 }
