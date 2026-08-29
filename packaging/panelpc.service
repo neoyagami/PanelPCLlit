@@ -4,7 +4,7 @@ After=graphical-session.target pipewire.service
 PartOf=graphical-session.target
 
 [Service]
-ExecStart=%h/.local/bin/panelpc -no-browser
+ExecStart=@PANELPC_BIN@ -no-browser
 Restart=on-failure
 RestartSec=2
 
