@@ -1,0 +1,92 @@
+name: CI and release packages
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Test with race detector
+        run: go test -race ./...
+      - name: Static analysis
+        run: go vet ./...
+
+  package:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goarch: amd64
+            package: panelpc-linux-amd64
+          - goarch: arm64
+            package: panelpc-linux-arm64
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build static Linux binary
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          mkdir -p "dist/$PACKAGE"
+          go build -trimpath -ldflags="-s -w" -o "dist/$PACKAGE/panelpc" ./cmd/panelpc
+          install -m 0755 packaging/install.sh "dist/$PACKAGE/install.sh"
+          install -m 0644 packaging/panelpc.service "dist/$PACKAGE/panelpc.service"
+          install -m 0644 README.md "dist/$PACKAGE/README.md"
+          install -d -m 0755 "dist/$PACKAGE/assets"
+          install -m 0644 assets/interface.png "dist/$PACKAGE/assets/interface.png"
+          cd dist
+          zip -9 -r "$PACKAGE.zip" "$PACKAGE"
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.package }}
+          path: dist/${{ matrix.package }}.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: panelpc-linux-*
+          path: release
+          merge-multiple: true
+      - name: Create checksums
+        working-directory: release
+        run: sha256sum panelpc-linux-*.zip > SHA256SUMS
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            release/panelpc-linux-amd64.zip
+            release/panelpc-linux-arm64.zip
+            release/SHA256SUMS
+          generate_release_notes: true
