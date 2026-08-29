@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="panelpc-token" content="__PANELPC_TOKEN__">
+  <title>PanelPC</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">PCPanel Lite · Linux</p>
+      <h1>PanelPC</h1>
+    </div>
+    <div id="device-pill" class="pill"><span></span><b>Buscando dispositivo</b></div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <h2>Cuatro controles, sin ruido.</h2>
+        <p>Cada giro conserva sólo su valor más reciente. Audio y OBS se ejecutan en una única cola acotada.</p>
+      </div>
+      <div class="profile-actions">
+        <label>Perfil activo<select id="active-profile"></select></label>
+        <button id="new-profile" class="secondary">Nuevo perfil</button>
+        <button id="save" class="primary">Guardar cambios</button>
+      </div>
+    </section>
+
+    <div id="notice" class="notice hidden"></div>
+    <section class="lighting-bar">
+      <div class="lighting-heading">
+        <div>
+          <p class="eyebrow">Iluminación del dispositivo</p>
+          <h2 id="lighting-title">RGB por dial</h2>
+        </div>
+        <button id="toggle-lighting" class="collapse-button secondary" type="button" aria-expanded="true">Ocultar</button>
+      </div>
+      <label>Modo
+        <select id="lighting-mode">
+          <option value="dials">RGB independiente</option>
+          <option value="vu">VU de nivel · 4 segmentos</option>
+          <option value="spectrum">Espectro · 4 bandas</option>
+        </select>
+      </label>
+      <div id="dial-lighting-controls" class="lighting-controls">
+        <label>Brillo global
+          <div class="brightness-control">
+            <input id="global-brightness" type="range" min="0" max="100" value="80">
+            <output id="global-brightness-value">80%</output>
+          </div>
+        </label>
+      </div>
+      <div id="vu-controls" class="vu-controls hidden">
+        <label>Audio a medir
+          <select id="vu-source-kind">
+            <option value="output">Salida predeterminada</option>
+            <option value="input">Entrada predeterminada</option>
+            <option value="app">Salida de aplicación</option>
+            <option value="output_device">Dispositivo de salida</option>
+            <option value="input_device">Dispositivo de entrada</option>
+          </select>
+        </label>
+        <label id="vu-app-wrap">Aplicación
+          <input id="vu-app-target" list="audio-apps" placeholder="Spotify, Firefox…">
+        </label>
+        <label id="vu-device-wrap">Dispositivo
+          <select id="vu-device-target"></select>
+        </label>
+        <label>Color mínimo<input id="vu-min-color" type="color" value="#35e58a"></label>
+        <label>Color máximo<input id="vu-max-color" type="color" value="#ff4d5f"></label>
+        <label>Brillo del VU
+          <div class="brightness-control">
+            <input id="vu-brightness" type="range" min="0" max="100" value="80">
+            <output id="vu-brightness-value">80%</output>
+          </div>
+        </label>
+        <label>Piso (dB)<input id="vu-min-db" type="number" min="-100" max="0" step="1" value="-48"></label>
+        <label>Techo (dB)<input id="vu-max-db" type="number" min="-40" max="12" step="1" value="0"></label>
+        <label>Actualizaciones/s<input id="vu-fps" type="number" min="5" max="30" step="1" value="20"></label>
+        <p id="reactive-help" class="field-help">Los cuatro anillos forman una barra de izquierda a derecha. El capturador es continuo y la salida USB se limita a este rate.</p>
+      </div>
+    </section>
+    <section id="knobs" class="knob-grid" aria-label="Configuración de knobs"></section>
+
+    <section class="settings">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Integración</p>
+          <h2>OBS WebSocket 5</h2>
+        </div>
+        <button id="test-obs" class="secondary">Probar conexión</button>
+      </div>
+      <div class="settings-grid">
+        <label>URL
+          <input id="obs-url" type="url" value="ws://127.0.0.1:4455" spellcheck="false">
+        </label>
+        <label>Contraseña
+          <input id="obs-password" type="password" autocomplete="new-password" placeholder="Opcional">
+        </label>
+      </div>
+      <p class="hint">Activa el servidor WebSocket en OBS → Herramientas → Ajustes del servidor WebSocket.</p>
+    </section>
+
+    <section class="diagnostics">
+      <div>
+        <p class="eyebrow">Diagnóstico</p>
+        <p id="last-event">Sin eventos todavía</p>
+      </div>
+      <div id="levels" class="levels"></div>
+    </section>
+  </main>
+
+  <datalist id="audio-apps"></datalist>
+  <datalist id="obs-inputs"></datalist>
+  <datalist id="obs-filters"></datalist>
+  <datalist id="profile-names"></datalist>
+  <template id="knob-template">
+    <article class="knob-card">
+      <div class="knob-top">
+        <div class="dial"><i></i><span>0</span></div>
+        <label class="label-field">Nombre<input class="knob-label" maxlength="30"></label>
+        <label class="color-field">RGB<input class="knob-color" type="color"></label>
+      </div>
+      <label class="track-light"><input class="knob-track" type="checkbox"> El brillo del LED sigue la posición del dial</label>
+      <div class="field-group">
+        <label>Al girar
+          <select class="turn-kind">
+            <option value="none">Sin acción</option>
+            <option value="output">Volumen de salida</option>
+            <option value="input">Volumen de micrófono</option>
+            <option value="output_device">Dispositivo de salida</option>
+            <option value="input_device">Dispositivo de entrada</option>
+            <option value="app">Volumen de aplicación</option>
+            <option value="obs_input">Volumen de entrada OBS</option>
+            <option value="obs_filter">Parámetro de filtro OBS</option>
+            <option value="shell">Ejecutar comando shell</option>
+          </select>
+        </label>
+        <label class="target-wrap"><span class="target-label">Canal o entrada</span>
+          <input class="turn-target" list="audio-apps" placeholder="Spotify o Mic/Aux">
+        </label>
+        <label class="device-target-wrap"><span class="device-target-label">Dispositivo</span>
+          <select class="device-target"></select>
+        </label>
+        <div class="range-row percent-range">
+          <label>Mín. %<input class="turn-min" type="number" min="0" max="150" step="1"></label>
+          <label>Máx. %<input class="turn-max" type="number" min="0" max="150" step="1"></label>
+        </div>
+        <div class="filter-fields">
+          <label>Fuente OBS<input class="filter-source" list="obs-inputs" placeholder="Cámara"></label>
+          <label>Filtro<input class="filter-name" list="obs-filters" placeholder="Corrección de color"></label>
+          <label>Propiedad<input class="filter-setting" placeholder="opacity"></label>
+          <div class="range-row">
+            <label>Mínimo<input class="filter-min" type="number" step="any"></label>
+            <label>Máximo<input class="filter-max" type="number" step="any"></label>
+          </div>
+          <p class="field-help">Para alpha en OBS moderno: agrega “Corrección de color” y usa <code>opacity</code>, rango 0–1. Los filtros antiguos usan 0–100.</p>
+        </div>
+        <div class="shell-turn-fields">
+          <label>Comando
+            <textarea class="turn-command" rows="3" spellcheck="false" placeholder="/bin/echo $LEVEL &gt; /tmp/nivel"></textarea>
+          </label>
+          <label>Intervalo mínimo (ms)
+            <input class="turn-rate" type="number" min="50" max="60000" step="10" value="250">
+          </label>
+          <p class="field-help">Se ejecuta con <code>/bin/sh -c</code>. Variables: <code>$LEVEL</code> (0–100) y <code>$RAW_LEVEL</code> (0–255). Timeout: 5 s.</p>
+        </div>
+      </div>
+      <div class="field-group click-group">
+        <label>Al hacer click
+          <select class="press-kind">
+            <option value="none">Sin acción</option>
+            <option value="mute_turn">Silenciar canal del giro</option>
+            <option value="obs_scene">Cambiar escena OBS</option>
+            <option value="obs_toggle_record">Alternar grabación OBS</option>
+            <option value="obs_toggle_stream">Alternar streaming OBS</option>
+            <option value="obs_toggle_input_mute">Silenciar entrada OBS</option>
+            <option value="profile">Cambiar perfil</option>
+            <option value="shell">Ejecutar comando shell</option>
+          </select>
+        </label>
+        <label class="press-target-wrap"><span class="press-target-label">Escena o entrada OBS</span>
+          <input class="press-target" placeholder="Nombre exacto en OBS">
+        </label>
+        <div class="shell-press-fields">
+          <label>Comando
+            <textarea class="press-command" rows="3" spellcheck="false" placeholder="/bin/echo click &gt; /tmp/click"></textarea>
+          </label>
+          <p class="field-help">También recibe <code>$LEVEL</code> y <code>$RAW_LEVEL</code> con la posición actual del dial.</p>
+        </div>
+      </div>
+      <div class="simulator">
+        <label>Probar giro<input class="test-range" type="range" min="0" max="255" value="0"></label>
+        <button class="test-click secondary" title="Simular click físico">Probar click</button>
+      </div>
+    </article>
+  </template>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
