@@ -181,7 +181,8 @@ function readConfig() {
     ? document.querySelector('#vu-app-target').value.trim()
     : ['output_device', 'input_device'].includes(vuKind) ? document.querySelector('#vu-device-target').value : '';
   const result = {
-    version: 4,
+    version: 6,
+    api: config.api,
     obs: { url: document.querySelector('#obs-url').value.trim(), password: document.querySelector('#obs-password').value },
     lighting: {
       globalBrightness: Number(document.querySelector('#global-brightness').value),

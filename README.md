@@ -146,6 +146,41 @@ Supported actions include:
 
 Sources and filters are queried directly from OBS and appear as suggestions in the interface.
 
+## Integration API
+
+PanelPC exposes a versioned HTTP API for local integrations at `http://127.0.0.1:8765/api/v1`. It listens only on loopback by default and requires the persistent bearer token stored in `~/.config/panelpc/config.json` with `0600` permissions.
+
+Read the current device, visualizer, profile, and knob state:
+
+```bash
+PANELPC_TOKEN=$(jq -r '.api.token' ~/.config/panelpc/config.json)
+curl --fail --silent \
+  -H "Authorization: Bearer $PANELPC_TOKEN" \
+  http://127.0.0.1:8765/api/v1/state
+```
+
+Launch the action already assigned to knob 2's click:
+
+```bash
+curl --fail --silent \
+  -H "Authorization: Bearer $PANELPC_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '{"knob":2,"kind":"click"}' \
+  http://127.0.0.1:8765/api/v1/actions
+```
+
+Launch knob 1's configured turn action at its midpoint:
+
+```bash
+curl --fail --silent \
+  -H "Authorization: Bearer $PANELPC_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '{"knob":1,"kind":"turn","value":128}' \
+  http://127.0.0.1:8765/api/v1/actions
+```
+
+Knob numbers in this public API are `1` through `4`; turn values are `0` through `255`. The endpoint can only trigger actions already present in the active profile. It does not accept a shell command, OBS request, or audio target in the HTTP payload. Turn coalescing, command rate limits, and the bounded action queue apply equally to physical and API-generated events.
+
 ## RGB lighting
 
 Each knob has its own color and supports two basic modes:
@@ -197,7 +232,7 @@ Each profile stores all four assignments and the complete lighting configuration
 - Inspect `install.sh` and verify `SHA256SUMS` before installing a downloaded release.
 - Do not apply unrelated driver, group, or `udev` instructions from another PCPanel application to PanelPC.
 
-The configuration, including the OBS password, is stored with `0600` permissions in `~/.config/panelpc/config.json`. The API listens only on loopback and requires a random token embedded into the page when PanelPC starts.
+The configuration, including the OBS password and persistent integration token, is stored with `0600` permissions in `~/.config/panelpc/config.json`. The legacy web interface uses a separate random per-process token embedded into its page. The integration API requires its bearer token on every request.
 
 ## Continuous integration and release ZIPs
 

@@ -28,6 +28,9 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if got.Knobs[0] != want.Knobs[0] {
 		t.Fatalf("round trip differs: %#v != %#v", got.Knobs[0], want.Knobs[0])
 	}
+	if got.API.Token == "" || got.API.Token != want.API.Token {
+		t.Fatalf("API token was not persisted")
+	}
 }
 
 func TestNormalizeLimits(t *testing.T) {

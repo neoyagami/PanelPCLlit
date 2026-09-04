@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,17 +12,22 @@ import (
 	"strings"
 )
 
-const Version = 5
+const Version = 6
 
 const defaultProfileName = "Main"
 
 type Config struct {
 	Version       int                `json:"version"`
+	API           API                `json:"api"`
 	OBS           OBS                `json:"obs"`
 	Lighting      Lighting           `json:"lighting"`
 	Knobs         [4]Knob            `json:"knobs"`
 	ActiveProfile string             `json:"activeProfile"`
 	Profiles      map[string]Profile `json:"profiles"`
+}
+
+type API struct {
+	Token string `json:"token"`
 }
 
 type Profile struct {
@@ -95,6 +102,7 @@ func Default() Config {
 	}
 	cfg := Config{
 		Version: Version,
+		API:     API{Token: newToken()},
 		OBS:     OBS{URL: "ws://127.0.0.1:4455"},
 		Lighting: Lighting{
 			GlobalBrightness: 80,
@@ -154,6 +162,9 @@ func Save(path string, cfg Config) error {
 func (c *Config) Normalize() {
 	oldVersion := c.Version
 	c.Version = Version
+	if c.API.Token == "" {
+		c.API.Token = newToken()
+	}
 	if c.OBS.URL == "" {
 		c.OBS.URL = "ws://127.0.0.1:4455"
 	}
@@ -188,6 +199,14 @@ func (c *Config) Normalize() {
 	// The root is the active copy used by the engine and interface. On PUT it is
 	// also the most recent edit of the selected profile.
 	c.Profiles[c.ActiveProfile] = Profile{Lighting: c.Lighting, Knobs: c.Knobs}
+}
+
+func newToken() string {
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		panic(fmt.Sprintf("generate API token: %v", err))
+	}
+	return base64.RawURLEncoding.EncodeToString(secret)
 }
 
 func (c *Config) normalizeActive(oldVersion int) {
