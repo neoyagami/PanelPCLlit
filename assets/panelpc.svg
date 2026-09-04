@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="PanelPC four-dial icon">
+  <rect x="8" y="50" width="240" height="156" rx="25" fill="#536174"/>
+  <rect x="14" y="56" width="228" height="144" rx="20" fill="#151b24"/>
+  <rect x="23" y="69" width="210" height="118" rx="14" fill="#222b37"/>
+  <g>
+    <circle cx="48" cy="117" r="21" fill="#ff4d67"/><circle cx="48" cy="117" r="12" fill="#0c1118"/><rect x="46" y="108" width="4" height="9" rx="2" fill="#dce5f2"/>
+    <circle cx="101" cy="117" r="21" fill="#ffc857"/><circle cx="101" cy="117" r="12" fill="#0c1118"/><rect x="99" y="108" width="4" height="9" rx="2" fill="#dce5f2"/>
+    <circle cx="154" cy="117" r="21" fill="#35d0ba"/><circle cx="154" cy="117" r="12" fill="#0c1118"/><rect x="152" y="108" width="4" height="9" rx="2" fill="#dce5f2"/>
+    <circle cx="207" cy="117" r="21" fill="#7c83ff"/><circle cx="207" cy="117" r="12" fill="#0c1118"/><rect x="205" y="108" width="4" height="9" rx="2" fill="#dce5f2"/>
+  </g>
+</svg>

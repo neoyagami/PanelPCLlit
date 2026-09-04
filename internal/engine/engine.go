@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"panelpc/internal/audio"
 	"panelpc/internal/config"
+	"panelpc/internal/desktopapps"
 	"panelpc/internal/device"
 	"panelpc/internal/obsws"
 	"panelpc/internal/shellcmd"
@@ -38,6 +40,7 @@ type Engine struct {
 	status        Status
 	work          chan job
 	switchProfile func(string) error
+	lastAppLaunch map[string]time.Time
 }
 
 type job struct {
@@ -54,7 +57,8 @@ func New(dev *device.Manager, aud *audio.Controller, cfg config.Config) *Engine 
 		config: cfg,
 		// Only one action may wait behind the currently running one. Subsequent
 		// turns remain coalesced per knob in Run.
-		work: make(chan job, 1),
+		work:          make(chan job, 1),
+		lastAppLaunch: make(map[string]time.Time),
 	}
 	e.vu = vumeter.New(aud.VUCaptureArgs, e.onVUFrame, e.onVUError)
 	e.configureLighting(cfg)
@@ -309,6 +313,17 @@ func (e *Engine) press(knob config.Knob, index int) error {
 			return fmt.Errorf("profile switching is not available")
 		}
 		return switcher(action.Target)
+	case "application":
+		path := strings.TrimSpace(action.Target)
+		if path == "" {
+			return fmt.Errorf("no desktop application selected")
+		}
+		now := time.Now()
+		if now.Sub(e.lastAppLaunch[path]) < 3*time.Second {
+			return nil
+		}
+		e.lastAppLaunch[path] = now
+		return desktopapps.Launch(path)
 	case "shell":
 		return shellcmd.Run(action.Command, e.currentValue(index))
 	default:

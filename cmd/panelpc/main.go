@@ -42,6 +42,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("load %s: %v", configPath, err)
 	}
+	// Persist generated defaults and migrations, including the integration API
+	// token, before accepting requests.
+	if err := config.Save(configPath, cfg); err != nil {
+		log.Fatalf("save %s: %v", configPath, err)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

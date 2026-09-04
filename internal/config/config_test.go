@@ -28,6 +28,9 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if got.Knobs[0] != want.Knobs[0] {
 		t.Fatalf("round trip differs: %#v != %#v", got.Knobs[0], want.Knobs[0])
 	}
+	if got.API.Token == "" || got.API.Token != want.API.Token {
+		t.Fatalf("API token was not persisted")
+	}
 }
 
 func TestNormalizeLimits(t *testing.T) {
@@ -77,6 +80,19 @@ func TestNormalizeShellRate(t *testing.T) {
 	cfg.Normalize()
 	if cfg.Knobs[0].Turn.RateMS != 50 || cfg.Knobs[1].Turn.RateMS != 60000 {
 		t.Fatalf("unexpected rates: %d, %d", cfg.Knobs[0].Turn.RateMS, cfg.Knobs[1].Turn.RateMS)
+	}
+}
+
+func TestCloneDoesNotShareProfiles(t *testing.T) {
+	cfg := Default()
+	clone := cfg.Clone()
+	profile := clone.Profiles["Main"]
+	profile.Knobs[0].Label = "Edited"
+	clone.Profiles["Main"] = profile
+	delete(clone.Profiles, "unused")
+
+	if got := cfg.Profiles["Main"].Knobs[0].Label; got == "Edited" {
+		t.Fatal("Clone shares its Profiles map with the original")
 	}
 }
 

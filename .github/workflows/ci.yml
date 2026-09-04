@@ -56,7 +56,7 @@ jobs:
           install -m 0644 packaging/panelpc.service "dist/$PACKAGE/panelpc.service"
           install -m 0644 README.md "dist/$PACKAGE/README.md"
           install -d -m 0755 "dist/$PACKAGE/assets"
-          install -m 0644 assets/interface.png "dist/$PACKAGE/assets/interface.png"
+          install -m 0644 assets/interface*.png "dist/$PACKAGE/assets/"
           cd dist
           zip -9 -r "$PACKAGE.zip" "$PACKAGE"
       - name: Upload ZIP
@@ -66,9 +66,97 @@ jobs:
           path: dist/${{ matrix.package }}.zip
           if-no-files-found: error
 
+  appimage:
+    name: AppImage x86_64
+    needs: test
+    runs-on: ubuntu-22.04
+    container:
+      image: golang:1.25-bookworm
+    env:
+      LINUXDEPLOY_VERSION: 1-alpha-20251107-1
+      LINUXDEPLOY_QT_VERSION: 1-alpha-20250213-1
+      LINUXDEPLOY_SHA256: c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d
+      QT_PLUGIN_SHA256: 15106be885c1c48a021198e7e1e9a48ce9d02a86dd0a1848f00bdbf3c1c92724
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Install Qt 6 build and runtime dependencies
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends \
+            file g++ pkg-config qt6-base-dev qt6-base-dev-tools qt6-wayland qt6-wayland-dev util-linux
+      - name: Download verified AppImage packaging tools
+        run: |
+          curl --fail --location --retry 3 \
+            --output "$RUNNER_TEMP/linuxdeploy-x86_64.AppImage" \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LINUXDEPLOY_VERSION/linuxdeploy-x86_64.AppImage"
+          curl --fail --location --retry 3 \
+            --output "$RUNNER_TEMP/linuxdeploy-plugin-qt-x86_64.AppImage" \
+            "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/$LINUXDEPLOY_QT_VERSION/linuxdeploy-plugin-qt-x86_64.AppImage"
+          echo "$LINUXDEPLOY_SHA256  $RUNNER_TEMP/linuxdeploy-x86_64.AppImage" | sha256sum --check
+          echo "$QT_PLUGIN_SHA256  $RUNNER_TEMP/linuxdeploy-plugin-qt-x86_64.AppImage" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/linuxdeploy-x86_64.AppImage" "$RUNNER_TEMP/linuxdeploy-plugin-qt-x86_64.AppImage"
+      - name: Build AppImage with bundled Qt runtime
+        env:
+          APPIMAGE_ARCH: x86_64
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          LINUXDEPLOY: ${{ runner.temp }}/linuxdeploy-x86_64.AppImage
+          QMAKE: /usr/bin/qmake6
+        run: ./packaging/build-appimage.sh
+      - name: Verify AppImage checksum
+        run: cd dist && sha256sum --check PanelPC-x86_64.AppImage.sha256
+      - name: Smoke-test AppImage startup
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          QT_QPA_PLATFORM: offscreen
+          XDG_CONFIG_HOME: ${{ runner.temp }}/panelpc-smoke-config
+        run: |
+          set +e
+          timeout 5 ./dist/PanelPC-x86_64.AppImage --no-hardware --no-api
+          status=$?
+          set -e
+          if [[ "$status" -ne 0 && "$status" -ne 124 ]]; then
+            exit "$status"
+          fi
+      - name: Test user install and autostart lifecycle
+        run: |
+          test_home="$RUNNER_TEMP/panelpc-install-home"
+          data_home="$test_home/.local/share"
+          config_home="$test_home/.config"
+          image="$GITHUB_WORKSPACE/dist/PanelPC-x86_64.AppImage"
+          install -d -o nobody -g nogroup "$test_home"
+          run_panelpc() {
+            runuser --user nobody -- env \
+              APPIMAGE_EXTRACT_AND_RUN=1 \
+              HOME="$test_home" \
+              XDG_DATA_HOME="$data_home" \
+              XDG_CONFIG_HOME="$config_home" \
+              "$image" "$@"
+          }
+          run_panelpc --install-user --autostart
+          test -x "$data_home/panelpc/PanelPC.AppImage"
+          test -f "$data_home/applications/panelpc.desktop"
+          grep -q -- '--background' "$config_home/autostart/panelpc.desktop"
+          run_panelpc --disable-autostart
+          test ! -e "$config_home/autostart/panelpc.desktop"
+          run_panelpc --enable-autostart
+          test -f "$config_home/autostart/panelpc.desktop"
+          run_panelpc --uninstall-user
+          test ! -e "$data_home/panelpc/PanelPC.AppImage"
+          test ! -e "$data_home/applications/panelpc.desktop"
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v7
+        with:
+          name: PanelPC-AppImage-x86_64
+          path: |
+            dist/PanelPC-x86_64.AppImage
+            dist/PanelPC-x86_64.AppImage.sha256
+          if-no-files-found: error
+          compression-level: 0
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: package
+    needs: [package, appimage]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -79,14 +167,22 @@ jobs:
           pattern: panelpc-linux-*
           path: release
           merge-multiple: true
+      - name: Download AppImages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: PanelPC-AppImage-*
+          path: release
+          merge-multiple: true
       - name: Create checksums
         working-directory: release
-        run: sha256sum panelpc-linux-*.zip > SHA256SUMS
+        run: sha256sum panelpc-linux-*.zip PanelPC-*.AppImage > SHA256SUMS
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
           files: |
             release/panelpc-linux-amd64.zip
             release/panelpc-linux-arm64.zip
+            release/PanelPC-x86_64.AppImage
+            release/PanelPC-x86_64.AppImage.sha256
             release/SHA256SUMS
           generate_release_notes: true

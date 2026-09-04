@@ -1,8 +1,16 @@
 # PanelPC
 
-PanelPC is a small native Linux controller for the PCPanel Lite/Mini with four clickable RGB knobs. It controls PipeWire/PulseAudio audio, device lighting, and OBS Studio through WebSocket 5 from an embedded local web interface.
+PanelPC is a native Linux controller for the PCPanel Lite/Mini with four clickable RGB knobs. It controls PipeWire/PulseAudio audio, device lighting, and OBS Studio through WebSocket 5. The current development branch adds a native Qt 6 desktop interface while retaining the loopback HTTP service as an authenticated integration API.
 
-![PanelPC web interface showing four side-by-side knob controls, RGB spectrum mode, and OBS integration](assets/interface.png)
+![PanelPC native interface showing four side-by-side knob controls, RGB spectrum mode, audio, OBS, and shell actions](assets/interface.png)
+
+The click page exposes application launching, profile and OBS actions, commands, and physical-button testing:
+
+![PanelPC click actions including a Freedesktop application selector, OBS scene switching, and shell commands](assets/interface-actions.png)
+
+Global OBS WebSocket credentials and the authenticated local API stay in a compact Settings dialog:
+
+![PanelPC settings for OBS WebSocket and the local authenticated API](assets/interface-settings.png)
 
 ## Motivation
 
@@ -19,8 +27,12 @@ This project was built specifically for Linux and communicates directly with `hi
 - Per-knob RGB colors, global brightness, and dial-position brightness tracking.
 - **VU Toy** and **four-band spectrum analyzer** modes that turn the physical PCPanel into a real-time desktop audio visualizer.
 - Shell actions for turns and clicks, with level variables, timeout, and configurable rate limiting.
+- Click actions can launch installed Freedesktop applications selected by name. PanelPC uses KDE's `kstart`, GNOME's `gtk-launch`, or `gio launch` according to the active desktop session.
 - Complete profiles and profile switching from a physical knob click.
-- Responsive, collapsible local web interface embedded in a single Go binary.
+- Native Qt 6 interface with the four physical controls presented side by side.
+- System tray controls for opening the panel, global OBS/API settings, application information, and quitting; closing the main window keeps PanelPC available in the tray.
+- The controller, interface, USB handling, and integration API run in one process; the desktop interface is not an HTTP client.
+- The embedded web interface remains available as a compatibility fallback during the native-interface transition.
 - Bounded queues and event coalescing to avoid blocking the desktop or flooding USB.
 
 Exposing the panel as an OpenRGB device is considered a future enhancement and is not part of the current implementation.
@@ -46,7 +58,7 @@ AI assistance is not a substitute for code review. Automated tests, Go's race de
 
 ## Building
 
-PanelPC requires Go 1.23 or newer and has no third-party Go modules.
+The headless/web build requires Go 1.23 or newer:
 
 ```bash
 make test
@@ -60,9 +72,72 @@ The interface opens at `http://127.0.0.1:8765`. To run without opening a browser
 ./build/panelpc -no-browser
 ```
 
+### Native Qt interface
+
+Building the desktop executable requires a C++ compiler, `pkg-config`, and the Qt 6 development files in addition to Go. These are build-time requirements only; running the resulting binary requires the compatible Qt 6 shared libraries, not the SDK or headers.
+
+```bash
+make build-qt
+./build/panelpc-qt
+```
+
+The Qt executable talks directly to the same in-process controller used by the hardware engine. It also starts the authenticated integration API on `127.0.0.1:8765`; it does not connect back to itself over HTTP. Global OBS WebSocket and integration API details live in **Settings**, available from both the system tray and the main toolbar. Closing the main window hides it to the tray; use **Quit** in the tray menu to stop PanelPC.
+
+Do not run it alongside the installed `panelpc.service`, because both processes would compete for the PCPanel and the same API port. For an interface-only preview that leaves the service untouched:
+
+```bash
+./build/panelpc-qt --no-hardware --no-api
+```
+
+The AppImage build bundles the required Qt runtime libraries, including X11 and Wayland platform support, so users do not need to install Qt or a development SDK. The standalone raw executable intentionally remains dynamically linked to the distribution's Qt 6 runtime.
+
+Documentation screenshots are rendered from the real Qt widgets in a deterministic preview configuration:
+
+```bash
+make screenshots
+```
+
 ## Installing a release
 
-Download the ZIP for your architecture from the GitHub Releases page, verify the published checksum, extract it, and inspect the installer before running it:
+### AppImage desktop application — recommended
+
+Download the x86_64 AppImage from GitHub Releases and verify its adjacent checksum file:
+
+```bash
+sha256sum -c PanelPC-x86_64.AppImage.sha256
+chmod +x PanelPC-x86_64.AppImage
+./PanelPC-x86_64.AppImage
+```
+
+It can remain portable, or install itself entirely inside the current user's home directory:
+
+```bash
+./PanelPC-x86_64.AppImage --install-user
+```
+
+Install it and start it automatically with the desktop session:
+
+```bash
+./PanelPC-x86_64.AppImage --install-user --autostart
+```
+
+Autostart can later be changed independently, and uninstalling preserves `~/.config/panelpc/config.json`:
+
+```bash
+./PanelPC-x86_64.AppImage --disable-autostart
+./PanelPC-x86_64.AppImage --enable-autostart
+./PanelPC-x86_64.AppImage --uninstall-user
+```
+
+Run every installation command as the regular desktop user, without `sudo`. The installed AppImage appears in the application menu and uses the system tray. If the old headless service is installed, stop and disable it before starting the Qt application so the two processes do not compete for the USB device or API port:
+
+```bash
+systemctl --user disable --now panelpc.service
+```
+
+### Headless/web ZIP
+
+The ZIP contains the static headless controller and web interface. Download it for your architecture, verify the release checksum, extract it, and inspect the installer before running it:
 
 ```bash
 sha256sum -c SHA256SUMS
@@ -72,21 +147,21 @@ less install.sh
 ./install.sh --user
 ```
 
-The rootless `--user` installation is the default and recommended mode everywhere. It places the binary in `~/.local/bin`, installs a systemd user unit, and starts PanelPC in the current desktop session.
+The rootless `--user` installation places the headless binary in `~/.local/bin`, installs a systemd user unit, and starts PanelPC in the current desktop session.
 
 ### Bazzite and other immutable/stateless distributions
 
-Use the rootless installation:
+The AppImage user installation is recommended:
 
 ```bash
-./install.sh --user
+./PanelPC-x86_64.AppImage --install-user --autostart
 ```
 
-This mode is designed for Bazzite, Fedora Atomic desktops such as Silverblue and Kinoite, SteamOS, and similar systems. It writes only to the user's home directory, survives operating-system image updates, and does not use `rpm-ostree`, layering, or writable overlays.
+This mode is designed for Bazzite, Fedora Atomic desktops such as Silverblue and Kinoite, SteamOS, and similar systems. It writes only to the user's home directory, survives operating-system image updates, and does not use `rpm-ostree`, layering, or writable overlays. The headless ZIP's `./install.sh --user` remains available if a web-only service is preferred.
 
 ### Traditional distributions
 
-The same `--user` mode is recommended on Fedora, Ubuntu, Debian, Arch Linux, and other conventional distributions. An optional system-wide binary installation is available:
+The AppImage `--install-user` mode is also recommended on Fedora, Ubuntu, Debian, Arch Linux, and other conventional distributions. The headless ZIP additionally offers an optional system-wide binary installation:
 
 ```bash
 ./install.sh --system
@@ -146,6 +221,41 @@ Supported actions include:
 
 Sources and filters are queried directly from OBS and appear as suggestions in the interface.
 
+## Integration API
+
+PanelPC exposes a versioned HTTP API for local integrations at `http://127.0.0.1:8765/api/v1`. It listens only on loopback by default and requires the persistent bearer token stored in `~/.config/panelpc/config.json` with `0600` permissions.
+
+Read the current device, visualizer, profile, and knob state:
+
+```bash
+PANELPC_TOKEN=$(jq -r '.api.token' ~/.config/panelpc/config.json)
+curl --fail --silent \
+  -H "Authorization: Bearer $PANELPC_TOKEN" \
+  http://127.0.0.1:8765/api/v1/state
+```
+
+Launch the action already assigned to knob 2's click:
+
+```bash
+curl --fail --silent \
+  -H "Authorization: Bearer $PANELPC_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '{"knob":2,"kind":"click"}' \
+  http://127.0.0.1:8765/api/v1/actions
+```
+
+Launch knob 1's configured turn action at its midpoint:
+
+```bash
+curl --fail --silent \
+  -H "Authorization: Bearer $PANELPC_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '{"knob":1,"kind":"turn","value":128}' \
+  http://127.0.0.1:8765/api/v1/actions
+```
+
+Knob numbers in this public API are `1` through `4`; turn values are `0` through `255`. The endpoint can only trigger actions already present in the active profile. It does not accept a shell command, OBS request, or audio target in the HTTP payload. Turn coalescing, command rate limits, and the bounded action queue apply equally to physical and API-generated events.
+
 ## RGB lighting
 
 Each knob has its own color and supports two basic modes:
@@ -190,20 +300,22 @@ Each profile stores all four assignments and the complete lighting configuration
 
 ## Safety recommendations
 
-- **Do not run PanelPC or `install.sh` as root.** Audio, OBS, and desktop-session permissions belong to the logged-in user.
+- **Do not run PanelPC, its AppImage management options, or `install.sh` as root.** Audio, OBS, and desktop-session permissions belong to the logged-in user.
 - Do not run PanelPC at the same time as another PCPanel controller. Two processes competing for the same HID device can produce unreliable behavior.
 - Keep the web interface on its default loopback address. Do not expose it to a LAN or the internet.
 - Shell actions intentionally execute `/bin/sh -c`. Review every configured command and never paste untrusted commands into the interface.
+- Application actions only expose valid Freedesktop entries, but desktop shortcuts are still executable content. Select them only from applications and locations you trust.
 - Inspect `install.sh` and verify `SHA256SUMS` before installing a downloaded release.
 - Do not apply unrelated driver, group, or `udev` instructions from another PCPanel application to PanelPC.
 
-The configuration, including the OBS password, is stored with `0600` permissions in `~/.config/panelpc/config.json`. The API listens only on loopback and requires a random token embedded into the page when PanelPC starts.
+The configuration, including the OBS password and persistent integration token, is stored with `0600` permissions in `~/.config/panelpc/config.json`. The legacy web interface uses a separate random per-process token embedded into its page. The integration API requires its bearer token on every request.
 
-## Continuous integration and release ZIPs
+## Continuous integration and releases
 
-The GitHub Actions workflow runs the full test suite with Go's race detector and runs `go vet`. After those checks pass, it builds static Linux binaries for `amd64` and `arm64` and produces:
+The GitHub Actions workflow runs the full test suite with Go's race detector and runs `go vet`. After those checks pass, an x86_64 Debian 12 build container compiles the Qt executable and uses verified, pinned `linuxdeploy` and Qt-plugin downloads to bundle a broadly compatible Qt runtime. CI produces:
 
 - `panelpc-linux-amd64.zip`
 - `panelpc-linux-arm64.zip`
+- `PanelPC-x86_64.AppImage`
 
-Each archive contains the binary, `install.sh`, the systemd user-service template, this README, and its interface screenshot. Pushes and pull requests retain the ZIPs as CI artifacts. Pushing a tag beginning with `v`, such as `v0.1.0`, creates a GitHub Release containing both ZIPs and `SHA256SUMS`.
+The AppImage job smoke-tests Qt startup and the complete user-install/autostart/uninstall lifecycle. Each ZIP contains the static binary, `install.sh`, the systemd user-service template, this README, and the interface screenshots. Pushes and pull requests retain every package as a CI artifact. Pushing a tag beginning with `v`, such as `v0.1.0`, creates a GitHub Release containing both headless ZIPs, the x86_64 AppImage, its adjacent checksum, and the combined `SHA256SUMS`.
