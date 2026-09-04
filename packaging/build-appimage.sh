@@ -28,7 +28,11 @@ if [[ -n "${PANELPC_QT_BINARY:-}" ]]; then
 else
   source_binary="$build_root/panelpc-qt"
   mkdir -p "$build_root"
-  (cd "$project_dir" && go build -tags qt -trimpath -ldflags="-s -w" -o "$source_binary" ./cmd/panelpc-qt)
+  # AppImage builds may run in a container where the mounted checkout is not a
+  # Git safe directory. VCS metadata is not needed in the packaged binary, so
+  # disable stamping explicitly instead of depending on the builder's Git
+  # configuration.
+  (cd "$project_dir" && go build -buildvcs=false -tags qt -trimpath -ldflags="-s -w" -o "$source_binary" ./cmd/panelpc-qt)
 fi
 if [[ ! -x "$source_binary" ]]; then
   echo "Missing Qt executable: $source_binary" >&2
