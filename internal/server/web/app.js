@@ -37,12 +37,13 @@ function toggleFields(card) {
   card.querySelector('.device-target-label').textContent = turn === 'output_device' ? 'Output device' : 'Input device';
   populateDeviceSelect(card);
   const press = card.querySelector('.press-kind').value;
-  card.querySelector('.press-target-wrap').classList.toggle('hidden', !['obs_scene', 'obs_toggle_input_mute', 'profile'].includes(press));
+  card.querySelector('.press-target-wrap').classList.toggle('hidden', !['obs_scene', 'obs_toggle_input_mute', 'profile', 'application'].includes(press));
   const pressTarget = card.querySelector('.press-target');
   pressTarget.removeAttribute('list');
   if (press === 'profile') pressTarget.setAttribute('list', 'profile-names');
   if (press === 'obs_toggle_input_mute') pressTarget.setAttribute('list', 'obs-inputs');
-  card.querySelector('.press-target-label').textContent = press === 'profile' ? 'Profile' : press === 'obs_scene' ? 'OBS scene' : 'OBS input';
+  if (press === 'application') pressTarget.setAttribute('list', 'desktop-apps');
+  card.querySelector('.press-target-label').textContent = press === 'profile' ? 'Profile' : press === 'application' ? 'Desktop application' : press === 'obs_scene' ? 'OBS scene' : 'OBS input';
   card.querySelector('.shell-press-fields').classList.toggle('hidden', press !== 'shell');
 }
 
@@ -316,6 +317,19 @@ async function loadApps() {
   } catch (_) {}
 }
 
+async function loadDesktopApps() {
+  try {
+    const apps = await api('/api/desktop/apps');
+    const datalist = document.querySelector('#desktop-apps');
+    datalist.replaceChildren(...apps.map(app => {
+      const option = document.createElement('option');
+      option.value = app.path;
+      option.label = app.name;
+      return option;
+    }));
+  } catch (_) {}
+}
+
 function populateDeviceSelect(card) {
   const kind = card.querySelector('.turn-kind').value;
   const wantedKind = kind === 'output_device' ? 'output' : kind === 'input_device' ? 'input' : '';
@@ -430,11 +444,13 @@ async function init() {
       }
     });
     await loadApps();
+    await loadDesktopApps();
     await loadAudioDevices();
     await loadOBSInputs();
     await refreshStatus();
     setInterval(refreshStatus, 500);
     setInterval(loadApps, 10000);
+    setInterval(loadDesktopApps, 30000);
     setInterval(loadAudioDevices, 10000);
     setInterval(loadOBSInputs, 15000);
   } catch (err) {

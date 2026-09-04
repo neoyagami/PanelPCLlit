@@ -122,3 +122,30 @@ func TestIntegrationAPILaunchesConfiguredKnobEvent(t *testing.T) {
 		t.Fatalf("unexpected event: %#v", event)
 	}
 }
+
+func TestDirectConfigSnapshotIsDetached(t *testing.T) {
+	srv, _ := testServer(t)
+	snapshot := srv.Config()
+	profile := snapshot.Profiles["Main"]
+	profile.Knobs[0].Label = "Edited elsewhere"
+	snapshot.Profiles["Main"] = profile
+
+	if got := srv.Config().Profiles["Main"].Knobs[0].Label; got == "Edited elsewhere" {
+		t.Fatal("Config returned a shared profile map")
+	}
+}
+
+func TestDirectUpdateAndProfileActivation(t *testing.T) {
+	srv, _ := testServer(t)
+	cfg := srv.Config()
+	cfg.Profiles["Streaming"] = config.Profile{Lighting: cfg.Lighting, Knobs: cfg.Knobs}
+	if err := srv.UpdateConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.ActivateProfile("Streaming"); err != nil {
+		t.Fatal(err)
+	}
+	if got := srv.Config().ActiveProfile; got != "Streaming" {
+		t.Fatalf("active profile = %q, want Streaming", got)
+	}
+}

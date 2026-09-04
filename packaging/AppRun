@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+app_dir="${APPDIR:-$(cd "$(dirname "$0")" && pwd)}"
+install_user=false
+uninstall_user=false
+enable_autostart=false
+disable_autostart=false
+management_requested=false
+show_help=false
+unknown_arguments=()
+
+for argument in "$@"; do
+  case "$argument" in
+    --install-user) install_user=true; management_requested=true ;;
+    --uninstall-user) uninstall_user=true; management_requested=true ;;
+    --autostart|--enable-autostart) enable_autostart=true; management_requested=true ;;
+    --disable-autostart) disable_autostart=true; management_requested=true ;;
+    -h|--help) show_help=true ;;
+    *) unknown_arguments+=("$argument") ;;
+  esac
+done
+
+print_help() {
+  cat <<'EOF'
+PanelPC — native PCPanel controller for Linux
+
+Usage:
+  PanelPC-ARCH.AppImage [OPTION...]
+
+Run options:
+  (no options)          Open PanelPC normally
+  --background          Start hidden in the system tray
+  --no-hardware         Open an interface preview without using the PCPanel
+  --no-api              Do not start the local integration API
+
+User installation:
+  --install-user        Install this AppImage for the current user and add it
+                        to the desktop application menu
+  --install-user --autostart
+                        Install and start PanelPC with the desktop session
+  --enable-autostart    Enable autostart for an existing user installation
+  --disable-autostart   Disable autostart without uninstalling PanelPC
+  --uninstall-user      Remove the AppImage, menu entry, and autostart entry;
+                        personal configuration is preserved
+
+Help:
+  -h, --help            Show this help and exit
+
+Examples:
+  ./PanelPC-x86_64.AppImage --install-user
+  ./PanelPC-x86_64.AppImage --install-user --autostart
+  ./PanelPC-x86_64.AppImage --disable-autostart
+
+Run the AppImage as your regular desktop user. Do not use sudo. PanelPC does
+not install a driver and does not change udev configuration.
+EOF
+}
+
+if [[ "$show_help" == true ]]; then
+  print_help
+  exit 0
+fi
+
+if [[ "$management_requested" == true ]]; then
+  if (( ${#unknown_arguments[@]} )); then
+    echo "Unknown option: ${unknown_arguments[0]}" >&2
+    exit 2
+  fi
+  if [[ "$install_user" == true && "$uninstall_user" == true ]] || \
+     [[ "$enable_autostart" == true && "$disable_autostart" == true ]] || \
+     [[ "$uninstall_user" == true && "$enable_autostart" == true ]] || \
+     [[ "$install_user" == true && "$disable_autostart" == true ]]; then
+    echo "Conflicting installation options were requested." >&2
+    exit 2
+  fi
+  if [[ "$enable_autostart" == true && "$install_user" != true && "$uninstall_user" == true ]]; then
+    echo "Autostart cannot be enabled while uninstalling." >&2
+    exit 2
+  fi
+  if [[ "$EUID" -eq 0 ]]; then
+    echo "Run the AppImage as your desktop user, without sudo." >&2
+    exit 2
+  fi
+  if [[ -z "${APPIMAGE:-}" ]] || [[ ! -f "${APPIMAGE:-}" ]]; then
+    echo "The original AppImage path is unavailable; run this option from the AppImage itself." >&2
+    exit 1
+  fi
+
+  mode=install
+  if [[ "$uninstall_user" == true ]]; then
+    mode=uninstall
+  elif [[ "$enable_autostart" == true && "$install_user" != true ]]; then
+    mode=autostart-on
+  elif [[ "$disable_autostart" == true ]]; then
+    mode=autostart-off
+  fi
+  arguments=()
+  if [[ "$enable_autostart" == true && "$install_user" == true ]]; then
+    arguments+=(--autostart)
+  fi
+  /usr/bin/bash "$app_dir/usr/share/panelpc/install-appimage-user.sh" \
+    "$mode" "$APPIMAGE" "$app_dir/panelpc.desktop" "$app_dir/panelpc.svg" "${arguments[@]}"
+  exit 0
+fi
+
+exec "$app_dir/usr/bin/panelpc-qt" "$@"

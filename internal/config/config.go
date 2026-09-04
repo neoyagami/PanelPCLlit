@@ -89,6 +89,20 @@ type PressAction struct {
 	Command string `json:"command,omitempty"`
 }
 
+// Clone returns an independent copy suitable for editing outside the owner of
+// the configuration. Most fields are values already; Profiles is the only map
+// and must be copied to avoid concurrent mutation through a shared reference.
+func (c Config) Clone() Config {
+	clone := c
+	if c.Profiles != nil {
+		clone.Profiles = make(map[string]Profile, len(c.Profiles))
+		for name, profile := range c.Profiles {
+			clone.Profiles[name] = profile
+		}
+	}
+	return clone
+}
+
 func Default() Config {
 	colors := [4]string{"#64e0b1", "#6da8ff", "#b88cff", "#ff9d66"}
 	var knobs [4]Knob

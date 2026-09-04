@@ -17,6 +17,7 @@ import (
 
 	"panelpc/internal/audio"
 	"panelpc/internal/config"
+	"panelpc/internal/desktopapps"
 	"panelpc/internal/device"
 	"panelpc/internal/engine"
 )
@@ -47,7 +48,7 @@ func New(configPath string, cfg config.Config, dev *device.Manager, eng *engine.
 		audio:      aud,
 		token:      base64.RawURLEncoding.EncodeToString(secret),
 	}
-	eng.SetProfileSwitcher(s.switchProfile)
+	eng.SetProfileSwitcher(s.ActivateProfile)
 	return s
 }
 
@@ -59,6 +60,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/status", s.authorize(s.getStatus))
 	mux.HandleFunc("GET /api/audio/apps", s.authorize(s.getApps))
 	mux.HandleFunc("GET /api/audio/devices", s.authorize(s.getDevices))
+	mux.HandleFunc("GET /api/desktop/apps", s.authorize(s.getDesktopApps))
 	mux.HandleFunc("POST /api/test", s.authorize(s.postTest))
 	mux.HandleFunc("POST /api/obs/test", s.authorize(s.testOBS))
 	mux.HandleFunc("GET /api/obs/inputs", s.authorize(s.getOBSInputs))
@@ -218,9 +220,7 @@ func (s *Server) postIntegrationAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getConfig(w http.ResponseWriter, _ *http.Request) {
-	s.configMu.RLock()
-	defer s.configMu.RUnlock()
-	writeJSON(w, http.StatusOK, s.config)
+	writeJSON(w, http.StatusOK, s.Config())
 }
 
 func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
@@ -235,15 +235,10 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid configuration: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	cfg.Normalize()
-	if err := config.Save(s.configPath, cfg); err != nil {
+	if err := s.UpdateConfig(cfg); err != nil {
 		http.Error(w, "save configuration: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	s.configMu.Lock()
-	s.config = cfg
-	s.configMu.Unlock()
-	s.engine.Configure(cfg)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -259,9 +254,31 @@ func (s *Server) getStatus(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (s *Server) switchProfile(name string) error {
+// Config returns a detached snapshot for native frontends and integrations.
+func (s *Server) Config() config.Config {
+	s.configMu.RLock()
+	defer s.configMu.RUnlock()
+	return s.config.Clone()
+}
+
+// UpdateConfig persists and applies a complete configuration atomically from
+// the perspective of readers. It is shared by the web and native frontends.
+func (s *Server) UpdateConfig(cfg config.Config) error {
+	cfg.Normalize()
+	if err := config.Save(s.configPath, cfg); err != nil {
+		return err
+	}
 	s.configMu.Lock()
-	cfg := s.config
+	s.config = cfg.Clone()
+	s.configMu.Unlock()
+	s.engine.Configure(cfg)
+	return nil
+}
+
+// ActivateProfile persists and applies a saved profile without using HTTP.
+func (s *Server) ActivateProfile(name string) error {
+	s.configMu.Lock()
+	cfg := s.config.Clone()
 	if err := cfg.ActivateProfile(name); err != nil {
 		s.configMu.Unlock()
 		return err
@@ -292,6 +309,15 @@ func (s *Server) getDevices(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, devices)
+}
+
+func (s *Server) getDesktopApps(w http.ResponseWriter, _ *http.Request) {
+	applications, err := desktopapps.Discover()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, http.StatusOK, applications)
 }
 
 func (s *Server) postTest(w http.ResponseWriter, r *http.Request) {

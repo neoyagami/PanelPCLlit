@@ -83,6 +83,19 @@ func TestNormalizeShellRate(t *testing.T) {
 	}
 }
 
+func TestCloneDoesNotShareProfiles(t *testing.T) {
+	cfg := Default()
+	clone := cfg.Clone()
+	profile := clone.Profiles["Main"]
+	profile.Knobs[0].Label = "Edited"
+	clone.Profiles["Main"] = profile
+	delete(clone.Profiles, "unused")
+
+	if got := cfg.Profiles["Main"].Knobs[0].Label; got == "Edited" {
+		t.Fatal("Clone shares its Profiles map with the original")
+	}
+}
+
 func TestActivateProfile(t *testing.T) {
 	cfg := Default()
 	night := cfg.Profiles[defaultProfileName]

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=PanelPC
+Comment=Configure and control a PCPanel Lite or Mini on Linux
+Exec=PanelPC
+Icon=panelpc
+Terminal=false
+Categories=AudioVideo;Audio;
+Keywords=PCPanel;Audio;Mixer;OBS;RGB;
+StartupNotify=true
