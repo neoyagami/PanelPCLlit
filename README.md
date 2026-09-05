@@ -89,7 +89,7 @@ Do not run it alongside the installed `panelpc.service`, because both processes 
 ./build/panelpc-qt --no-hardware --no-api
 ```
 
-The AppImage build bundles the required Qt runtime libraries, including X11 and Wayland platform support, so users do not need to install Qt or a development SDK. The standalone raw executable intentionally remains dynamically linked to the distribution's Qt 6 runtime.
+The AppImage build bundles the required Qt runtime libraries, so users do not need to install Qt or a development SDK. It defaults to the X11 backend when `DISPLAY` is available, including XWayland on Wayland desktops, to avoid missing bundled Wayland shell/buffer integrations. An explicit `QT_QPA_PLATFORM` setting is preserved. A Wayland-only session without XWayland is not currently verified. The standalone raw executable intentionally remains dynamically linked to the distribution's Qt 6 runtime.
 
 Documentation screenshots are rendered from the real Qt widgets in a deterministic preview configuration:
 

@@ -104,4 +104,11 @@ if [[ "$management_requested" == true ]]; then
   exit 0
 fi
 
+# Prefer the tested X11 backend when X11/XWayland is available. The bundled
+# Wayland platform plugin alone does not provide all shell/buffer integrations.
+# Preserve an explicit backend choice made by the user.
+if [[ -z "${QT_QPA_PLATFORM:-}" && -n "${DISPLAY:-}" ]]; then
+  export QT_QPA_PLATFORM=xcb
+fi
+
 exec "$app_dir/usr/bin/panelpc-qt" "$@"
