@@ -319,3 +319,17 @@ The GitHub Actions workflow runs the full test suite with Go's race detector and
 - `PanelPC-x86_64.AppImage`
 
 The AppImage job smoke-tests Qt startup and the complete user-install/autostart/uninstall lifecycle. Each ZIP contains the static binary, `install.sh`, the systemd user-service template, this README, and the interface screenshots. Pushes and pull requests retain every package as a CI artifact. Pushing a tag beginning with `v`, such as `v0.1.0`, creates a GitHub Release containing both headless ZIPs, the x86_64 AppImage, its adjacent checksum, and the combined `SHA256SUMS`.
+
+## License
+
+Copyright © 2026 PanelPC contributors.
+
+PanelPC is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version (`GPL-3.0-or-later`).
+
+PanelPC is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the complete license text.
+Third-party components retain their respective licenses.

@@ -614,7 +614,8 @@ func (w *Window) showAbout() {
 	details := qt.NewQLabel3(`<div style="text-align:center">
 Native PCPanel Lite/Mini controller for Linux<br><br>
 Development build · neoyagami · 2026<br>
-Built with AI tools<br><br>
+Built with AI tools<br>
+Licensed under GNU GPLv3 or later<br><br>
 <a href="https://github.com/neoyagami/PanelPCLlit">Download and source code</a>
 </div>`)
 	details.SetAlignment(qt.AlignCenter)

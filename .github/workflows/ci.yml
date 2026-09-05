@@ -55,6 +55,7 @@ jobs:
           install -m 0755 packaging/install.sh "dist/$PACKAGE/install.sh"
           install -m 0644 packaging/panelpc.service "dist/$PACKAGE/panelpc.service"
           install -m 0644 README.md "dist/$PACKAGE/README.md"
+          install -m 0644 LICENSE "dist/$PACKAGE/LICENSE"
           install -d -m 0755 "dist/$PACKAGE/assets"
           install -m 0644 assets/interface*.png "dist/$PACKAGE/assets/"
           cd dist
