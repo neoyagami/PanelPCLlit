@@ -2,7 +2,6 @@ package desktopapps
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,7 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
+	"unicode"
 )
 
 // Application is a launchable freedesktop Desktop Entry. Path is persisted in
@@ -115,29 +114,27 @@ func Read(path, desktopID, desktopDirectory string) (Application, bool) {
 
 // Launch uses the native desktop launcher selected by XDG_CURRENT_DESKTOP.
 func Launch(path string) error {
+	return launch(path, os.Getenv("XDG_CURRENT_DESKTOP"), findExecutable, os.Environ())
+}
+
+func launch(path, currentDesktop string, lookPath func(string) string, environment []string) error {
 	application, ok := Read(path, "", desktopDirectory())
 	if !ok {
 		return fmt.Errorf("the application shortcut is missing or invalid: %s", path)
 	}
-	program, arguments, ok := launchCommand(application.Path, os.Getenv("XDG_CURRENT_DESKTOP"), findExecutable)
+	program, arguments, ok := launchCommand(application.Path, currentDesktop, lookPath)
 	if !ok {
 		return errors.New("no compatible desktop application launcher was found")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	command := exec.CommandContext(ctx, program, arguments...)
-	command.Env = externalEnvironment(os.Environ())
-	output, err := command.CombinedOutput()
-	if ctx.Err() != nil {
-		return fmt.Errorf("application launcher timed out: %w", ctx.Err())
-	}
-	if err != nil {
-		detail := strings.TrimSpace(string(output))
-		if detail != "" {
-			return fmt.Errorf("application launcher: %w: %s", err, detail)
-		}
+	command := exec.Command(program, arguments...)
+	command.Env = externalEnvironment(environment)
+	if err := command.Start(); err != nil {
 		return fmt.Errorf("application launcher: %w", err)
 	}
+	// Native desktop launchers normally exit quickly, but waiting here would
+	// block hardware event handling when one is slow. Always reap it in the
+	// background so the knob loop remains responsive and no zombie is left.
+	go func() { _ = command.Wait() }()
 	return nil
 }
 
@@ -163,7 +160,99 @@ func launchCommand(path, currentDesktop string, lookPath func(string) string) (s
 	if program := lookPath("gio"); program != "" {
 		return program, []string{"launch", path}, true
 	}
-	return "", nil, false
+	return desktopExec(path)
+}
+
+// desktopExec returns a direct, no-document command from a desktop entry. It
+// is used only when no native Freedesktop launcher is available. The command
+// is split into argv and never passed through a shell.
+func desktopExec(path string) (string, []string, bool) {
+	entry, err := readDesktopEntry(path)
+	if err != nil {
+		return "", nil, false
+	}
+	tokens, ok := splitExec(entry["Exec"])
+	if !ok || len(tokens) == 0 {
+		return "", nil, false
+	}
+	result := make([]string, 0, len(tokens)+1)
+	for _, token := range tokens {
+		switch token {
+		case "%i":
+			if icon := strings.TrimSpace(entry["Icon"]); icon != "" {
+				result = append(result, "--icon", icon)
+			}
+			continue
+		case "%f", "%F", "%u", "%U", "%d", "%D", "%n", "%N", "%v", "%m":
+			continue
+		}
+		const escapedPercent = "\x00"
+		token = strings.ReplaceAll(token, "%%", escapedPercent)
+		token = strings.ReplaceAll(token, "%c", localized(entry, "Name"))
+		token = strings.ReplaceAll(token, "%k", path)
+		token = strings.ReplaceAll(token, escapedPercent, "%")
+		result = append(result, token)
+	}
+	if len(result) == 0 || strings.TrimSpace(result[0]) == "" {
+		return "", nil, false
+	}
+	return result[0], result[1:], true
+}
+
+// splitExec implements the quoting needed by Desktop Entry Exec values while
+// deliberately avoiding shell evaluation. Single quotes are accepted as a
+// compatibility extension, matching the fallback behavior used by YASDEC.
+func splitExec(value string) ([]string, bool) {
+	var result []string
+	var current strings.Builder
+	var quote rune
+	escaped := false
+	started := false
+	flush := func() {
+		if started {
+			result = append(result, current.String())
+			current.Reset()
+			started = false
+		}
+	}
+	for _, character := range value {
+		if escaped {
+			current.WriteRune(character)
+			started = true
+			escaped = false
+			continue
+		}
+		if character == '\\' {
+			escaped = true
+			started = true
+			continue
+		}
+		if quote != 0 {
+			if character == quote {
+				quote = 0
+			} else {
+				current.WriteRune(character)
+			}
+			started = true
+			continue
+		}
+		if character == '"' || character == '\'' {
+			quote = character
+			started = true
+			continue
+		}
+		if unicode.IsSpace(character) {
+			flush()
+			continue
+		}
+		current.WriteRune(character)
+		started = true
+	}
+	if escaped || quote != 0 {
+		return nil, false
+	}
+	flush()
+	return result, true
 }
 
 func registeredDesktopID(path string) string {
@@ -261,7 +350,12 @@ func readDesktopEntry(path string) (map[string]string, error) {
 		}
 		key, value, found := strings.Cut(line, "=")
 		if found {
-			entry[strings.TrimSpace(key)] = unescape(strings.TrimSpace(value))
+			key = strings.TrimSpace(key)
+			value = strings.TrimSpace(value)
+			if key != "Exec" {
+				value = unescape(value)
+			}
+			entry[key] = value
 		}
 	}
 	return entry, scanner.Err()
@@ -318,6 +412,13 @@ func externalEnvironment(source []string) []string {
 		delete(values, "LD_LIBRARY_PATH")
 	}
 	delete(values, "LD_LIBRARY_PATH_ORIG")
+	// AppImages must not leak their bundled Qt plugin paths into host tools
+	// such as kstart. Mixing those plugins with the system Qt can abort the
+	// launcher before it opens the selected application.
+	if values["APPDIR"] != "" {
+		delete(values, "QT_PLUGIN_PATH")
+		delete(values, "QT_QPA_PLATFORM_PLUGIN_PATH")
+	}
 	result := make([]string, 0, len(values))
 	for key, value := range values {
 		result = append(result, key+"="+value)

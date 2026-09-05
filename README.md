@@ -27,7 +27,7 @@ This project was built specifically for Linux and communicates directly with `hi
 - Per-knob RGB colors, global brightness, and dial-position brightness tracking.
 - **VU Toy** and **four-band spectrum analyzer** modes that turn the physical PCPanel into a real-time desktop audio visualizer.
 - Shell actions for turns and clicks, with level variables, timeout, and configurable rate limiting.
-- Click actions can launch installed Freedesktop applications selected by name. PanelPC uses KDE's `kstart`, GNOME's `gtk-launch`, or `gio launch` according to the active desktop session.
+- Click actions can launch installed Freedesktop applications selected by name. PanelPC uses KDE's `kstart`, GNOME's `gtk-launch`, or `gio launch` according to the active desktop session, with a direct no-shell `Exec` fallback when no desktop launcher is available.
 - Complete profiles and profile switching from a physical knob click.
 - Native Qt 6 interface with the four physical controls presented side by side.
 - System tray controls for opening the panel, global OBS/API settings, application information, and quitting; closing the main window keeps PanelPC available in the tray.

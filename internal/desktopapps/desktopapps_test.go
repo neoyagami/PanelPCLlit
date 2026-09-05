@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestReadLocalizedDesktopEntry(t *testing.T) {
@@ -63,6 +64,49 @@ func TestLaunchCommandUsesDesktopNativeLaunchers(t *testing.T) {
 	}
 }
 
+func TestDesktopExecExpandsMetadataWithoutUsingAShell(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "example.desktop")
+	data := "[Desktop Entry]\nType=Application\nName=Example App\nIcon=example\nExec=/usr/bin/example --name \"%c\" %U %% %k %i\n"
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	program, arguments, ok := desktopExec(path)
+	want := []string{"--name", "Example App", "%", path, "--icon", "example"}
+	if !ok || program != "/usr/bin/example" || !reflect.DeepEqual(arguments, want) {
+		t.Fatalf("direct command = %q %#v, %v; want arguments %#v", program, arguments, ok, want)
+	}
+}
+
+func TestDesktopExecRejectsMalformedQuoting(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "invalid.desktop")
+	data := "[Desktop Entry]\nType=Application\nName=Invalid\nExec=/usr/bin/example \"unfinished\n"
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := desktopExec(path); ok {
+		t.Fatal("malformed Exec value was accepted")
+	}
+}
+
+func TestLaunchReturnsWithoutWaitingForApplication(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "slow.desktop")
+	data := "[Desktop Entry]\nType=Application\nName=Slow\nExec=/bin/sh -c \"sleep 0.5\"\n"
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	err := launch(path, "COSMIC", func(string) string { return "" }, []string{"PATH=/usr/bin:/bin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed >= 250*time.Millisecond {
+		t.Fatalf("application launch blocked for %s", elapsed)
+	}
+}
+
 func TestExternalEnvironmentRestoresHostLibrariesAndDropsActivationTokens(t *testing.T) {
 	result := externalEnvironment([]string{
 		"PATH=/usr/bin",
@@ -72,6 +116,35 @@ func TestExternalEnvironmentRestoresHostLibrariesAndDropsActivationTokens(t *tes
 		"DESKTOP_STARTUP_ID=used",
 	})
 	want := []string{"LD_LIBRARY_PATH=/usr/local/lib", "PATH=/usr/bin"}
+	if !reflect.DeepEqual(result, want) {
+		t.Fatalf("environment = %#v, want %#v", result, want)
+	}
+}
+
+func TestExternalEnvironmentDropsBundledQtPluginsInsideAppImage(t *testing.T) {
+	result := externalEnvironment([]string{
+		"APPDIR=/tmp/.mount_PanelPC",
+		"QT_PLUGIN_PATH=/tmp/.mount_PanelPC/usr/plugins",
+		"QT_QPA_PLATFORM_PLUGIN_PATH=/tmp/.mount_PanelPC/usr/plugins/platforms",
+		"LD_LIBRARY_PATH=/tmp/.mount_PanelPC/usr/lib",
+		"WAYLAND_DISPLAY=wayland-0",
+		"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus",
+		"QT_QPA_PLATFORM=wayland",
+	})
+	want := []string{
+		"APPDIR=/tmp/.mount_PanelPC",
+		"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus",
+		"QT_QPA_PLATFORM=wayland",
+		"WAYLAND_DISPLAY=wayland-0",
+	}
+	if !reflect.DeepEqual(result, want) {
+		t.Fatalf("environment = %#v, want %#v", result, want)
+	}
+}
+
+func TestExternalEnvironmentPreservesHostQtPluginSettings(t *testing.T) {
+	result := externalEnvironment([]string{"QT_PLUGIN_PATH=/opt/qt/plugins"})
+	want := []string{"QT_PLUGIN_PATH=/opt/qt/plugins"}
 	if !reflect.DeepEqual(result, want) {
 		t.Fatalf("environment = %#v, want %#v", result, want)
 	}
