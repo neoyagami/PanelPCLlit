@@ -315,10 +315,9 @@ The configuration, including the OBS password and persistent integration token, 
 The GitHub Actions workflow runs the full test suite with Go's race detector and runs `go vet`. After those checks pass, an x86_64 Debian 12 build container compiles the Qt executable and uses verified, pinned `linuxdeploy` and Qt-plugin downloads to bundle a broadly compatible Qt runtime. CI produces:
 
 - `panelpc-linux-amd64.zip`
-- `panelpc-linux-arm64.zip`
 - `PanelPC-x86_64.AppImage`
 
-The AppImage job smoke-tests Qt startup and the complete user-install/autostart/uninstall lifecycle. Each ZIP contains the static binary, `install.sh`, the systemd user-service template, this README, and the interface screenshots. Pushes and pull requests retain every package as a CI artifact. Pushing a tag beginning with `v`, such as `v0.1.0`, creates a GitHub Release containing both headless ZIPs, the x86_64 AppImage, its adjacent checksum, and the combined `SHA256SUMS`.
+Distribution targets x86_64 (amd64) only. The AppImage job smoke-tests Qt startup and the complete user-install/autostart/uninstall lifecycle. The ZIP contains the static binary, `install.sh`, the systemd user-service template, this README, LICENSE, and the interface screenshots. Pushes and pull requests retain every package as a CI artifact. Pushing a tag beginning with `v`, such as `v0.1.0`, creates a GitHub Release containing the headless ZIP, the x86_64 AppImage, its adjacent checksum, and the combined `SHA256SUMS`.
 
 ## License
 

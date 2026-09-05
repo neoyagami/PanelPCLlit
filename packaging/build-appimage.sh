@@ -5,8 +5,7 @@ project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 architecture="${APPIMAGE_ARCH:-$(uname -m)}"
 case "$architecture" in
   amd64) architecture=x86_64 ;;
-  arm64) architecture=aarch64 ;;
-  x86_64|aarch64) ;;
+  x86_64) ;;
   *) echo "Unsupported AppImage architecture: $architecture" >&2; exit 2 ;;
 esac
 

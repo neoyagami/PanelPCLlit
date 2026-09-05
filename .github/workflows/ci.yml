@@ -28,14 +28,6 @@ jobs:
   package:
     needs: test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - goarch: amd64
-            package: panelpc-linux-amd64
-          - goarch: arm64
-            package: panelpc-linux-arm64
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -46,9 +38,9 @@ jobs:
       - name: Build static Linux binary
         env:
           GOOS: linux
-          GOARCH: ${{ matrix.goarch }}
+          GOARCH: amd64
           CGO_ENABLED: '0'
-          PACKAGE: ${{ matrix.package }}
+          PACKAGE: panelpc-linux-amd64
         run: |
           mkdir -p "dist/$PACKAGE"
           go build -trimpath -ldflags="-s -w" -o "dist/$PACKAGE/panelpc" ./cmd/panelpc
@@ -63,8 +55,8 @@ jobs:
       - name: Upload ZIP
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.package }}
-          path: dist/${{ matrix.package }}.zip
+          name: panelpc-linux-amd64
+          path: dist/panelpc-linux-amd64.zip
           if-no-files-found: error
 
   appimage:
@@ -195,7 +187,6 @@ jobs:
         with:
           files: |
             release/panelpc-linux-amd64.zip
-            release/panelpc-linux-arm64.zip
             release/PanelPC-x86_64.AppImage
             release/PanelPC-x86_64.AppImage.sha256
             release/SHA256SUMS
