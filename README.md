@@ -27,7 +27,7 @@ This project was built specifically for Linux and communicates directly with `hi
 - Per-knob RGB colors, global brightness, and dial-position brightness tracking.
 - **VU Toy** and **four-band spectrum analyzer** modes that turn the physical PCPanel into a real-time desktop audio visualizer.
 - Shell actions for turns and clicks, with level variables, timeout, and configurable rate limiting.
-- Click actions can launch installed Freedesktop applications selected by name. PanelPC uses KDE's `kstart`, GNOME's `gtk-launch`, or `gio launch` according to the active desktop session.
+- Click actions can launch installed Freedesktop applications selected by name. PanelPC uses KDE's `kstart`, GNOME's `gtk-launch`, or `gio launch` according to the active desktop session, with a direct no-shell `Exec` fallback when no desktop launcher is available.
 - Complete profiles and profile switching from a physical knob click.
 - Native Qt 6 interface with the four physical controls presented side by side.
 - System tray controls for opening the panel, global OBS/API settings, application information, and quitting; closing the main window keeps PanelPC available in the tray.
@@ -89,7 +89,7 @@ Do not run it alongside the installed `panelpc.service`, because both processes 
 ./build/panelpc-qt --no-hardware --no-api
 ```
 
-The AppImage build bundles the required Qt runtime libraries, including X11 and Wayland platform support, so users do not need to install Qt or a development SDK. The standalone raw executable intentionally remains dynamically linked to the distribution's Qt 6 runtime.
+The AppImage build bundles the required Qt runtime libraries, so users do not need to install Qt or a development SDK. It defaults to the X11 backend when `DISPLAY` is available, including XWayland on Wayland desktops, to avoid missing bundled Wayland shell/buffer integrations. An explicit `QT_QPA_PLATFORM` setting is preserved. A Wayland-only session without XWayland is not currently verified. The standalone raw executable intentionally remains dynamically linked to the distribution's Qt 6 runtime.
 
 Documentation screenshots are rendered from the real Qt widgets in a deterministic preview configuration:
 
@@ -315,7 +315,20 @@ The configuration, including the OBS password and persistent integration token, 
 The GitHub Actions workflow runs the full test suite with Go's race detector and runs `go vet`. After those checks pass, an x86_64 Debian 12 build container compiles the Qt executable and uses verified, pinned `linuxdeploy` and Qt-plugin downloads to bundle a broadly compatible Qt runtime. CI produces:
 
 - `panelpc-linux-amd64.zip`
-- `panelpc-linux-arm64.zip`
 - `PanelPC-x86_64.AppImage`
 
-The AppImage job smoke-tests Qt startup and the complete user-install/autostart/uninstall lifecycle. Each ZIP contains the static binary, `install.sh`, the systemd user-service template, this README, and the interface screenshots. Pushes and pull requests retain every package as a CI artifact. Pushing a tag beginning with `v`, such as `v0.1.0`, creates a GitHub Release containing both headless ZIPs, the x86_64 AppImage, its adjacent checksum, and the combined `SHA256SUMS`.
+Distribution targets x86_64 (amd64) only. The AppImage job smoke-tests Qt startup and the complete user-install/autostart/uninstall lifecycle. The ZIP contains the static binary, `install.sh`, the systemd user-service template, this README, LICENSE, and the interface screenshots. Pushes and pull requests retain every package as a CI artifact. Pushing a tag beginning with `v`, such as `v0.1.0`, creates a GitHub Release containing the headless ZIP, the x86_64 AppImage, its adjacent checksum, and the combined `SHA256SUMS`.
+
+## License
+
+Copyright © 2026 PanelPC contributors.
+
+PanelPC is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version (`GPL-3.0-or-later`).
+
+PanelPC is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the complete license text.
+Third-party components retain their respective licenses.

@@ -597,13 +597,37 @@ func (w *Window) openSettings() {
 }
 
 func (w *Window) showAbout() {
-	qt.QMessageBox_About(nil, "About PanelPC", `<h2>PanelPC</h2>
-<p>A native PCPanel Lite/Mini controller for Linux.</p>
-<p>Direct <code>hidraw</code>, PipeWire/PulseAudio and OBS WebSocket 5 integration,<br>
-built with Go, Qt 6 and MIQT.</p>
-<p><b>Development build</b></p>
-<p><a href="https://github.com/neoyagami/PanelPCLlit">Project on GitHub</a></p>
-<p>Developed with OpenAI Codex assistance under human direction.</p>`)
+	dialog := qt.NewQDialog(w.QWidget)
+	defer dialog.Delete()
+	dialog.SetWindowTitle("About PanelPC")
+	dialog.SetWindowIcon(w.WindowIcon())
+	dialog.SetMinimumWidth(430)
+	layout := qt.NewQVBoxLayout(dialog.QWidget)
+	layout.SetContentsMargins(28, 24, 28, 20)
+	layout.SetSpacing(12)
+
+	title := qt.NewQLabel3("PanelPC")
+	title.SetAlignment(qt.AlignCenter)
+	title.SetStyleSheet("font-size: 24px; font-weight: 700;")
+	layout.AddWidget(title.QWidget)
+
+	details := qt.NewQLabel3(`<div style="text-align:center">
+Native PCPanel Lite/Mini controller for Linux<br><br>
+Development build · neoyagami · 2026<br>
+Built with AI tools<br>
+Licensed under GNU GPLv3 or later<br><br>
+<a href="https://github.com/neoyagami/PanelPCLlit">Download and source code</a>
+</div>`)
+	details.SetAlignment(qt.AlignCenter)
+	details.SetOpenExternalLinks(true)
+	details.SetTextInteractionFlags(qt.TextBrowserInteraction)
+	layout.AddWidget(details.QWidget)
+
+	buttons := qt.NewQDialogButtonBox4(qt.QDialogButtonBox__Close)
+	buttons.Button(qt.QDialogButtonBox__Close).SetText("Close")
+	buttons.OnRejected(dialog.Reject)
+	layout.AddWidget(buttons.QWidget)
+	dialog.Exec()
 }
 
 func (w *Window) saveSettings() bool {

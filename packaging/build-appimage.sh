@@ -5,8 +5,7 @@ project_dir="$(cd "$(dirname "$0")/.." && pwd)"
 architecture="${APPIMAGE_ARCH:-$(uname -m)}"
 case "$architecture" in
   amd64) architecture=x86_64 ;;
-  arm64) architecture=aarch64 ;;
-  x86_64|aarch64) ;;
+  x86_64) ;;
   *) echo "Unsupported AppImage architecture: $architecture" >&2; exit 2 ;;
 esac
 
@@ -44,6 +43,7 @@ install -m 0755 "$project_dir/packaging/AppRun" "$app_dir/AppRun"
 install -m 0755 "$project_dir/packaging/install-appimage-user.sh" "$app_dir/usr/share/panelpc/install-appimage-user.sh"
 install -m 0644 "$project_dir/packaging/panelpc.desktop" "$app_dir/panelpc.desktop"
 install -m 0644 "$project_dir/assets/panelpc.svg" "$app_dir/panelpc.svg"
+install -m 0644 "$project_dir/LICENSE" "$app_dir/usr/share/panelpc/LICENSE"
 
 export APPIMAGE_EXTRACT_AND_RUN=1
 export DISABLE_COPYRIGHT_FILES_DEPLOYMENT=1
