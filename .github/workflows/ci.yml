@@ -129,12 +129,14 @@ jobs:
           test_home="$RUNNER_TEMP/panelpc-install-home"
           data_home="$test_home/.local/share"
           config_home="$test_home/.config"
+          temp_home="$test_home/tmp"
           image="$GITHUB_WORKSPACE/dist/PanelPC-x86_64.AppImage"
-          install -d -o nobody -g nogroup "$test_home"
+          install -d -o nobody -g nogroup "$test_home" "$temp_home"
           run_panelpc() {
             runuser --user nobody -- env \
               APPIMAGE_EXTRACT_AND_RUN=1 \
               HOME="$test_home" \
+              TMPDIR="$temp_home" \
               XDG_DATA_HOME="$data_home" \
               XDG_CONFIG_HOME="$config_home" \
               "$image" "$@"

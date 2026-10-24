@@ -137,11 +137,23 @@ This mode is designed for Bazzite, Fedora Atomic desktops such as Silverblue and
 
 The AppImage `--install-user` mode is also recommended on Fedora, Ubuntu, Debian, Arch Linux, and other conventional distributions.
 
-### No drivers or device-permission changes
+### Device access and `udev`
 
-PanelPC does **not** install a kernel module, USB driver, HID driver, or background input driver. There is no `udev` rule in this repository, and the installer does not create, edit, reload, or remove one. No `MODE="0666"`, custom group membership, or broad HID permission change is applied.
+PanelPC does **not** need a kernel module, USB driver, HID driver, or background input driver. Its installers also do not modify system `udev` configuration. Current systemd hardware databases recognize the PCPanel family and grant the active desktop user access automatically, and Bazzite already supplies equivalent `hidraw` access. Some distributions and older systemd packages do not yet include those entries.
 
-You do not need to install drivers or change `udev` configuration. PanelPC uses the device access already provided to the active desktop session. If a distribution reports a permission error, do not run PanelPC as root and do not grant global access to every `hidraw` device; open an issue with the distribution, desktop session, and device information instead.
+If PanelPC reports `permission denied` while opening `/dev/hidrawN`, install this narrowly scoped rule for the three supported PCPanel models:
+
+```bash
+sudo tee /etc/udev/rules.d/70-panelpc.rules >/dev/null <<'EOF'
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="a3c4", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="a3c5", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="eb52", TAG+="uaccess"
+EOF
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=hidraw --action=add
+```
+
+Unplug and reconnect the panel after installing the rule if it is still inaccessible. This is a one-time host configuration on affected distributions; AppImage updates do not overwrite it. Do not run PanelPC as root, add broad access to every `hidraw` node, or use a global `MODE="0666"` rule.
 
 ## Audio
 
@@ -274,7 +286,7 @@ Each profile stores all four assignments and the complete lighting configuration
 - Shell actions intentionally execute `/bin/sh -c`. Review every configured command and never paste untrusted commands into the interface.
 - Application actions only expose valid Freedesktop entries, but desktop shortcuts are still executable content. Select them only from applications and locations you trust.
 - Verify the checksum before installing a downloaded release.
-- Do not apply unrelated driver, group, or `udev` instructions from another PCPanel application to PanelPC.
+- If your distribution needs a `udev` rule, use the device-specific `TAG+="uaccess"` rules documented above. Avoid unrelated drivers, custom groups, and global HID permission changes.
 
 The configuration, including the OBS password and persistent integration token, is stored with `0600` permissions in `~/.config/panelpc/config.json`. The integration API requires its bearer token on every request.
 

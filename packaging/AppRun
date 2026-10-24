@@ -53,7 +53,8 @@ Examples:
   ./PanelPC-x86_64.AppImage --disable-autostart
 
 Run the AppImage as your regular desktop user. Do not use sudo. PanelPC does
-not install a driver and does not change udev configuration.
+not install a driver or modify udev configuration. Some distributions require
+the one-time device-access rule documented in the project README.
 EOF
 }
 

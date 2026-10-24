@@ -181,6 +181,9 @@ func (m *Manager) serve(ctx context.Context, f *os.File, product string) error {
 		f.Close()
 		return fmt.Errorf("%s is not pollable: %w", f.Name(), err)
 	}
+	// Capture the clock baseline before touching the device so a suspend cannot
+	// be missed in the small window between initialization and the event loop.
+	resume := newSuspendDetector(m.bootClock)
 	if err := m.initialize(f, product); err != nil {
 		f.Close()
 		return err
@@ -192,7 +195,6 @@ func (m *Manager) serve(ctx context.Context, f *os.File, product string) error {
 		<-readDone
 		return err
 	}
-	resume := newSuspendDetector(m.bootClock)
 	ticker := time.NewTicker(m.resumeCheck)
 	defer ticker.Stop()
 	for {
