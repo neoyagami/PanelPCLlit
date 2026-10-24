@@ -38,14 +38,16 @@ Exposing the panel as an OpenRGB device is considered a future enhancement and i
 
 ## AI-assisted development
 
-This project does not hide its use of artificial intelligence. The initial design, code, and documentation were developed with assistance from **OpenAI Codex**, under human direction. Functional decisions were specified and reviewed by the hardware owner, and the integrations were tested during development with a real PCPanel Mini, a PipeWire/PulseAudio session, and OBS Studio.
+This project does not hide its use of artificial intelligence. The initial design, code, and documentation were developed with assistance from **OpenAI Codex**, under human direction. Functional decisions were specified and reviewed by the hardware owner, and the integrations were tested during development with a real PCPanel Mini, a PipeWire/PulseAudio session, and OBS Studio. Later contributions were developed with assistance from **Anthropic Claude** (Claude Code), under the same human direction: the suspend/resume lighting fix and the removal of idle polling were diagnosed, reviewed, and tested on real hardware by the contributor.
 
 AI assistance is not a substitute for code review. Automated tests, Go's race detector, and static analysis are run before builds. Review the code and any configured commands before using it on another system.
 
 ## Why it should not freeze the desktop
 
 - It reads only the PCPanel `hidraw` node; it never captures keyboard or mouse input.
+- The device reader blocks in the kernel until the panel sends a report; it does not poll, so an idle panel costs no CPU wakeups.
 - The HID queue has a fixed capacity of 32 events and never blocks the device reader.
+- A USB reset during resume from suspend clears the panel's lighting without disconnecting it. PanelPC checks every 2 seconds whether the system slept and, if so, sends the lighting again.
 - Knob turns provide absolute values, so only the latest value for each knob is retained every 50 ms.
 - Only one external operation runs at a time, with at most one additional operation waiting.
 - Every `wpctl` or `pactl` call times out after 1.5 seconds.
